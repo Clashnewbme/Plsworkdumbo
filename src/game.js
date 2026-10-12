@@ -413,6 +413,7 @@ function checkEnd() {
 let landCount = 0; const count_land = () => landCount || (landCount = land.reduce((a, b) => a + b, 0));
 function end(t) {
   over = true;
+  pendingOffers = []; activeOffer = null; $('offer').hidden = true;
   const me = players[HUMAN], earned = Math.floor(me.tiles / 8) + (t === 'Victory!' ? 100 : 0) + 10;
   save.coins += earned; persist(); updateCoins();
   t += '<br><small>+' + earned + ' coins</small>'; const m = document.getElementById('msg'); m.hidden = false; m.innerHTML = t + '<br><button onclick="location.reload()">Play again</button>'; }
