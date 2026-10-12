@@ -1,11 +1,36 @@
+*{box-sizing:border-box}
 html,body{margin:0;height:100%;overflow:hidden;background:#0b2a4a;font-family:system-ui,sans-serif;color:#fff}
-#c{display:block;width:100%;height:100%}
-#hud,#board{position:fixed;background:rgba(10,20,35,.8);border-radius:8px;padding:10px;font-size:14px}
-#hud{left:10px;bottom:10px;max-width:380px}
-#board{right:10px;top:10px;min-width:150px}
-#btns{margin:6px 0}
-button{background:#2a5fa8;color:#fff;border:0;border-radius:5px;padding:6px 10px;margin-right:4px;cursor:pointer}
+button{background:#2a5fa8;color:#fff;border:1px solid rgba(255,255,255,.12);border-radius:6px;padding:7px 10px;cursor:pointer;font:inherit;transition:background .15s,transform .15s}
+button:hover:not(:disabled){background:#3979c9;transform:translateY(-1px)}
+button:focus-visible{outline:2px solid #83d7ff;outline-offset:2px}
 button.on{background:#d98a1e}
-button:disabled{opacity:.5}
+button:disabled{opacity:.45;cursor:not-allowed}
+#c{display:block;width:100%;height:100%;touch-action:none}
+#hud,#board{position:fixed;background:rgba(10,20,35,.88);border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:12px;font-size:14px;backdrop-filter:blur(8px);box-shadow:0 8px 30px #0003}
+#hud{left:12px;bottom:12px;max-width:min(560px,calc(100vw - 24px))}
+#board{right:12px;top:12px;min-width:160px;line-height:1.7}
+.hud-top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+#stats{line-height:1.5}
+#bMenu{flex:none;padding:3px 10px}
+#hud label{display:flex;align-items:center;gap:8px;margin-top:7px}
+#pct{flex:1;min-width:70px;accent-color:#59b8e8}
+#btns{display:flex;flex-wrap:wrap;gap:5px;margin:9px 0}
+#btns button{font-size:12px}
 #help{opacity:.7;font-size:12px}
-#msg{position:fixed;top:40%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,.85);padding:30px 50px;font-size:28px;border-radius:12px}
+#menu{position:fixed;inset:0;z-index:5;display:grid;place-items:center;padding:20px;background:linear-gradient(135deg,rgba(5,17,32,.76),rgba(5,17,32,.38))}
+#menu[hidden]{display:none}
+#menuCard{width:min(520px,100%);padding:clamp(24px,5vw,42px);border:1px solid rgba(255,255,255,.18);border-radius:18px;background:linear-gradient(145deg,rgba(17,40,61,.97),rgba(12,27,43,.97));box-shadow:0 24px 80px #0008}
+.eyebrow{margin:0;color:#83d7ff;font-size:11px;font-weight:800;letter-spacing:.18em}
+#menu h1{margin:8px 0;font-size:clamp(32px,7vw,52px);line-height:1.05}
+#menuCard>p:not(.eyebrow):not(.menu-tip){color:#c5d4df;line-height:1.6}
+.how-to{display:grid;gap:10px;margin:24px 0;color:#dce8f1;font-size:14px}
+.how-to b{display:inline-grid;place-items:center;width:25px;height:25px;margin-right:8px;border-radius:7px;background:#1e5475;color:#a5e4ff;font-size:11px}
+.menu-actions{display:flex;gap:8px;flex-wrap:wrap}
+.menu-actions button{padding:10px 16px}
+#menuStart,#menuNew{background:#1481a8}
+.menu-tip{margin:18px 0 0;color:#93a8b7;font-size:12px}
+#toast{position:fixed;z-index:4;left:50%;top:18px;transform:translate(-50%,-12px);padding:9px 14px;border:1px solid #ffffff26;border-radius:8px;background:#102b40eF;opacity:0;pointer-events:none;transition:opacity .18s,transform .18s}
+#toast.show{opacity:1;transform:translate(-50%,0)}
+#msg{position:fixed;z-index:6;top:40%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,.9);padding:30px 40px;text-align:center;font-size:28px;border-radius:12px}
+#msg button{margin-top:12px}
+@media(max-width:600px){#hud{left:8px;bottom:8px;padding:9px}#board{right:8px;top:8px;min-width:132px;padding:8px;font-size:12px}#btns button{padding:6px 7px;font-size:11px}#help{max-width:calc(100vw - 40px)}}
