@@ -17,13 +17,26 @@
     <div class="options">
       <label>Country name <input id="nameInput" maxlength="16" autocomplete="off"></label>
       <label>Map <select id="mapSelect"></select></label>
+      <label>Difficulty <select id="diffSelect"></select></label>
+      <label>Opponents <select id="botSelect"><option>4</option><option>8</option><option selected>14</option><option>20</option><option>28</option></select></label>
+      <label>Territory colour <input id="colorInput" type="color" value="#2a8cff"></label>
     </div>
     <div class="menu-actions">
       <button id="menuStart">Begin conquest</button>
       <button id="menuResume" hidden>Resume game</button>
       <button id="menuNew">New game</button>
+      <button id="shopOpen">Shop &amp; locker (<span id="coins">0</span> coins)</button>
     </div>
     <p class="menu-tip">currently being developed.</p>
+  </section>
+</div>
+<div id="shop" hidden>
+  <section id="shopCard">
+    <div class="hud-top"><h2>Shop &amp; Locker</h2><span>Coins: <b id="shopCoins">0</b></span></div>
+    <p class="menu-tip">Earn coins by playing: land held at the end plus a bonus for victory. Buy items, then equip them.</p>
+    <div id="shopTabs"></div>
+    <div id="shopGrid"></div>
+    <button id="shopClose">Close</button>
   </section>
 </div>
 <div id="hud">
@@ -32,6 +45,7 @@
   <div id="btns">
     <button id="bCity">City (<span id="cCity"></span>g)</button>
     <button id="bPort">Port (<span id="cPort"></span>g)</button>
+    <button id="bDef">Defense post (<span id="cDef"></span>g)</button>
     <button id="bShip">Ship (<span id="cShip"></span>g)</button>
     <button id="bCancel">Cancel attack</button>
   </div>
