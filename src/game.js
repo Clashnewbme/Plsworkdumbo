@@ -128,6 +128,7 @@ function tidyCoast() {
 const owner = new Uint8Array(N);          // 0 = unclaimed
 const building = new Uint8Array(N);       // 0 none, 1 city, 2 port, 3 defense post
 let flagOf = [], players = [], attacks = [], ships = [], navalAttacks = [], tick = 0, over = false, mode = null;
+let pendingOffers = [], activeOffer = null, humanOfferCooldown = 0;
 let playerName = 'You', started = false, paused = true, toastTimer;
 const HUMAN = 1;
 const nbrs = i => {
@@ -144,6 +145,7 @@ function newGame() {
   const R = SETTINGS.start;
   botOffset = (rnd() * COUNTRIES.length) | 0;
   owner.fill(0); building.fill(0); attacks = []; ships = []; navalAttacks = []; tick = 0; over = false; players = [null]; mode = null; rel = {};
+  pendingOffers = []; activeOffer = null; humanOfferCooldown = 0; $('offer').hidden = true;
   const spots = [];
   // only spawn on solid ground, not on slivers of coast
   for (let i = 0; i < N; i++) if (land[i] && nbrs(i).every(j => land[j])) spots.push(i);
@@ -214,6 +216,35 @@ function diplomacy(pid, target, kind) {
     setRelation(pid, target, 'neutral'); rel[rkey(pid, target)] = 'war';
     showToast('You declared war on ' + bot.name + '.'); return;
   }
+  function showNextOffer() {
+    if (activeOffer || !pendingOffers.length) return;
+    activeOffer = pendingOffers.shift();
+    const bot = players[activeOffer.bot];
+    if (!bot || !bot.alive || relation(HUMAN, bot.id) !== activeOffer.relation) {
+      activeOffer = null; showNextOffer(); return;
+    }
+    $('offerText').textContent = bot.name + ' has sent a ' + (activeOffer.kind === 'peace' ? 'peace offer.' : 'alliance request.');
+    $('offer').hidden = false;
+  }
+  function queueBotOffer(bot, kind) {
+    const currentRelation = relation(HUMAN, bot.id);
+    if (pendingOffers.some(o => o.bot === bot.id) || (activeOffer && activeOffer.bot === bot.id)) return false;
+    pendingOffers.push({ bot: bot.id, kind, relation: currentRelation });
+    showNextOffer();
+    return true;
+  }
+  function answerBotOffer(accept) {
+    const offer = activeOffer;
+    activeOffer = null; $('offer').hidden = true;
+    const bot = offer && players[offer.bot];
+    if (bot && bot.alive && relation(HUMAN, bot.id) === offer.relation) {
+      if (accept) {
+        setRelation(HUMAN, bot.id, offer.kind);
+        showToast(bot.name + ' is now ' + (offer.kind === 'peace' ? 'at peace with you.' : 'your ally.'));
+      } else showToast('You rejected ' + bot.name + '\'s ' + (offer.kind === 'peace' ? 'peace offer.' : 'alliance request.'));
+    } else showToast('That diplomatic offer has expired.');
+    showNextOffer();
+  }
   if (kind === 'break') { setRelation(pid, target, 'neutral'); showToast('Treaty with ' + bot.name + ' ended.'); return; }
   if (botAnswer(bot, pid, kind)) {
     setRelation(pid, target, kind);
@@ -228,6 +259,7 @@ function startAttack(pid, target, frac) {
   if (target && friendly(pid, target)) { if (pid === HUMAN) showToast('You have a treaty with ' + players[target].name + '. Break it first.'); return false; }
   const send = Math.floor(p.troops * frac);
   if (send < 5) return false;
+  if (target) setRelation(pid, target, 'war');
   p.troops -= send;
   const ex = attacks.find(a => a.p === pid && a.t === target);
   if (ex) ex.troops += send; else attacks.push({ p: pid, t: target, troops: send });
@@ -276,10 +308,38 @@ function botThink(b) {
   }
   let best = 0, bestT = 1e9;
   for (const t of targets.keys()) { const d = players[t].troops / Math.max(1, players[t].tiles); if (d < bestT) { bestT = d; best = t; } }
+  if (botDiplomacyThink(b, [...targets.keys()])) return;
   for (const t of [...targets.keys()]) if (friendly(b.id, t)) targets.delete(t);
   best = 0; bestT = 1e9; for (const t of targets.keys()) { const d = players[t].troops / Math.max(1, players[t].tiles); if (d < bestT) { bestT = d; best = t; } }
-  if (free && (rnd() < .6 || !best)) startAttack(b.id, 0, .3);
-  else if (best && b.troops > players[best].troops * .5) startAttack(b.id, best, .5);
+  if (free && (!best || rnd() < .6)) {
+    if (rnd() < .75) startAttack(b.id, 0, .3);
+  } else if (best && b.troops > players[best].troops * .5) {
+    const advantage = b.troops / Math.max(1, players[best].troops);
+    const attackChance = Math.max(.1, Math.min(.85, (advantage - .4) * .55));
+    if (rnd() < attackChance) startAttack(b.id, best, .5);
+  }
+}
+function botDiplomacyThink(bot, neighbors) {
+  if (!neighbors.length) return false;
+  const targetId = neighbors[(rnd() * neighbors.length) | 0], target = players[targetId];
+  const state = relation(bot.id, targetId), strength = bot.troops + bot.tiles * 4, rivalStrength = target.troops + target.tiles * 4;
+  let kind = null;
+  if (state === 'war' && strength < rivalStrength * .8 && rnd() < .3) kind = 'peace';
+  else if (state === 'neutral' && rnd() < .035) kind = 'peace';
+  else if (state === 'peace' && rnd() < .08) kind = 'alliance';
+  else if ((state === 'peace' || state === 'alliance') && strength > rivalStrength * 1.4 && rnd() < (state === 'alliance' ? .025 : .06)) {
+    setRelation(bot.id, targetId, 'neutral');
+    if (targetId === HUMAN) showToast(bot.name + ' broke its treaty with you.');
+    return true;
+  }
+  if (!kind) return false;
+  if (targetId === HUMAN) {
+    if (tick < humanOfferCooldown) return false;
+    humanOfferCooldown = tick + 600;
+    return queueBotOffer(bot, kind);
+  }
+  if (botAnswer(target, bot.id, kind)) setRelation(bot.id, targetId, kind);
+  return true;
 }
 function randomTile(pid) {
   const own = []; for (let i = 0; i < N; i++) if (owner[i] === pid) own.push(i);
@@ -305,6 +365,7 @@ function startNavalAttack(pid, target, frac) {
   if (owner[target] && friendly(pid, owner[target])) { showToast('You have a treaty with that nation.'); return false; }
   const send = Math.floor(p.troops * frac);
   if (send < 5) { showToast('You need at least 5 troops for an attack.'); return false; }
+  if (owner[target]) setRelation(pid, owner[target], 'war');
   p.troops -= send; ship.busy = true;
   const distance = Math.hypot(ship.dock % W - target % W, ((ship.dock / W) | 0) - ((target / W) | 0));
   navalAttacks.push({ p: pid, target, troops: send, ship, progress: 0, duration: Math.max(12, Math.ceil(distance / 2)) });
@@ -557,6 +618,8 @@ $('bCancel').onclick = () => {
   });
   showToast('Orders cancelled. Most committed troops returned.');
 };
+$('offerAccept').onclick = () => answerBotOffer(true);
+$('offerReject').onclick = () => answerBotOffer(false);
 $('pct').oninput = () => $('pctv').textContent = $('pct').value + '%';
 $('cCity').textContent = COST.city; $('cPort').textContent = COST.port; $('cShip').textContent = COST.ship; $('cDef').textContent = COST.defense;
 $('nameInput').value = playerName = (function () { try { return localStorage.getItem('pdName') || 'You'; } catch (e) { return 'You'; } })();

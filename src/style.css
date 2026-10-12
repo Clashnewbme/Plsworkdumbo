@@ -35,6 +35,14 @@ button:disabled{opacity:.4;cursor:not-allowed}
 .menu-tip{margin:18px 0 0;color:#aaa;font-size:12px}
 #toast{position:fixed;z-index:4;left:50%;top:18px;transform:translate(-50%,-12px);padding:9px 14px;border:1px solid #fff;background:#000;opacity:0;pointer-events:none;transition:opacity .18s,transform .18s}
 #toast.show{opacity:1;transform:translate(-50%,0)}
+#offer{position:fixed;inset:0;z-index:9;display:grid;place-items:center;padding:20px;background:rgba(0,0,0,.75)}
+#offer[hidden]{display:none}
+#offerCard{width:min(380px,100%);padding:24px;border:2px solid #fff;background:#000}
+#offerCard h2{margin:0}
+#offerText{color:#ddd;line-height:1.5}
+.offer-actions{display:flex;gap:8px}
+#offerAccept{background:#fff;color:#000}
+#offerAccept:hover:not(:disabled){background:#000;color:#fff}
 #msg{position:fixed;z-index:6;top:40%;left:50%;transform:translate(-50%,-50%);background:#000;border:2px solid #fff;padding:30px 40px;text-align:center;font-size:28px}
 #msg button{margin-top:12px}
 @media(max-width:600px){#hud{left:8px;bottom:8px;padding:9px}#board{right:8px;top:8px;min-width:132px;padding:8px;font-size:12px}#btns button{padding:6px 7px;font-size:11px}#help{max-width:calc(100vw - 40px)}}
