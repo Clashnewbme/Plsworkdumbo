@@ -142,13 +142,53 @@ const nbrs = i => {
 };
 const isCoast = i => nbrs(i).some(j => !land[j]);
 
+let diploEvents = [];
+function addDiploEvent(type, message, bot) {
+  const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  diploEvents.unshift({ type, message, bot, time });
+  if (diploEvents.length > 25) diploEvents.pop();
+  renderDiploFeed();
+}
+function renderDiploFeed() {
+  const feed = $('diploFeed');
+  if (!feed) return;
+  if (!diploEvents.length) {
+    feed.innerHTML = '<div class="diplo-placeholder" id="diploEmpty">No diplomatic events yet. Right-click a nation on the map to interact.</div>';
+    return;
+  }
+  feed.innerHTML = diploEvents.slice(0, 10).map(ev => {
+    let icon = '📜', badgeClass = 'tag-neutral';
+    if (ev.type === 'alliance-request') { icon = '📬'; badgeClass = 'tag-request'; }
+    else if (ev.type === 'alliance-accept') { icon = '🤝'; badgeClass = 'tag-success'; }
+    else if (ev.type === 'alliance-reject') { icon = '❌'; badgeClass = 'tag-danger'; }
+    else if (ev.type === 'peace-offer') { icon = '🕊️'; badgeClass = 'tag-request'; }
+    else if (ev.type === 'peace-accept') { icon = '🕊️'; badgeClass = 'tag-success'; }
+    else if (ev.type === 'peace-reject') { icon = '❌'; badgeClass = 'tag-danger'; }
+    else if (ev.type === 'war') { icon = '⚔️'; badgeClass = 'tag-danger'; }
+    else if (ev.type === 'break') { icon = '💔'; badgeClass = 'tag-warning'; }
+    else if (ev.type === 'reject') { icon = '⛔'; badgeClass = 'tag-danger'; }
+
+    const flagHtml = ev.bot && ev.bot.flag ? '<i class="fl" style="background:' + flagCss(ev.bot.flag) + '"></i>' : '';
+    const colorPill = ev.bot ? '<span class="diplo-color" style="background:rgb(' + ev.bot.color + ')"></span>' : '';
+
+    return '<div class="diplo-item ' + badgeClass + '">' +
+      '<div class="diplo-item-header">' +
+        '<span class="diplo-item-icon">' + icon + '</span>' +
+        '<span class="diplo-item-time">' + ev.time + '</span>' +
+      '</div>' +
+      '<div class="diplo-item-body">' + colorPill + flagHtml + '<span class="diplo-text">' + ev.message + '</span></div>' +
+    '</div>';
+  }).join('');
+}
+
 let botOffset = 0;
 function newGame() {
   BOTS = Math.max(1, Math.min(BOTS, 40));
   const R = SETTINGS.start;
   botOffset = (rnd() * COUNTRIES.length) | 0;
   owner.fill(0); building.fill(0); attacks = []; ships = []; navalAttacks = []; tick = 0; over = false; players = [null]; mode = null; rel = {};
-  pendingOffers = []; activeOffer = null; humanOfferCooldown = 0; $('offer').hidden = true;
+  pendingOffers = []; activeOffer = null; humanOfferCooldown = 0; if ($('offer')) $('offer').hidden = true;
+  diploEvents = []; renderDiploFeed();
   const spots = [];
   // only spawn on solid ground, not on slivers of coast
   for (let i = 0; i < N; i++) if (land[i] && nbrs(i).every(j => land[j])) spots.push(i);
@@ -217,23 +257,46 @@ function diplomacy(pid, target, kind) {
  if (!bot || !bot.alive || target === pid) return;
  if (kind === 'war') {
    setRelation(pid, target, 'neutral'); rel[rkey(pid, target)] = 'war';
-   showToast('You declared war on ' + bot.name + '.'); return;
+   const msg = 'You declared war on ' + bot.name + '.';
+   showToast(msg);
+   addDiploEvent('war', msg, bot);
+   return;
  }
- if (kind === 'break') { setRelation(pid, target, 'neutral'); showToast('Treaty with ' + bot.name + ' ended.'); return; }
+ if (kind === 'break') {
+   setRelation(pid, target, 'neutral');
+   const msg = 'Treaty with ' + bot.name + ' ended.';
+   showToast(msg);
+   addDiploEvent('break', msg, bot);
+   return;
+ }
  if (botAnswer(bot, pid, kind)) {
    setRelation(pid, target, kind);
-   showToast(bot.name + ' accepted your ' + (kind === 'peace' ? 'peace treaty.' : 'alliance.'));
- } else showToast(bot.name + ' rejected your ' + (kind === 'peace' ? 'peace offer.' : 'alliance request.'));
+   const msg = bot.name + ' accepted your ' + (kind === 'peace' ? 'peace offer.' : 'alliance request.');
+   showToast(msg);
+   addDiploEvent(kind === 'peace' ? 'peace-accept' : 'alliance-accept', msg, bot);
+ } else {
+   const msg = bot.name + ' rejected your ' + (kind === 'peace' ? 'peace offer.' : 'alliance request.');
+   showToast(msg);
+   addDiploEvent(kind === 'peace' ? 'peace-reject' : 'alliance-reject', msg, bot);
+ }
 }
 function showNextOffer() {
- if (activeOffer || !pendingOffers.length) return;
+ if (activeOffer || !pendingOffers.length) {
+   if (!activeOffer && $('offer')) $('offer').hidden = true;
+   return;
+ }
  activeOffer = pendingOffers.shift();
  const bot = players[activeOffer.bot];
  if (!bot || !bot.alive || relation(HUMAN, bot.id) !== activeOffer.relation) {
    activeOffer = null; showNextOffer(); return;
  }
- $('offerText').textContent = bot.name + ' has sent a ' + (activeOffer.kind === 'peace' ? 'peace offer.' : 'alliance request.');
- $('offer').hidden = false;
+ const isAlliance = activeOffer.kind === 'alliance';
+ const offerTitle = isAlliance ? 'Alliance Request' : 'Peace Offer';
+ const offerMsg = bot.name + (isAlliance ? ' has requested an alliance with your nation.' : ' has sent a peace treaty offer.');
+ if ($('offerTitle')) $('offerTitle').textContent = offerTitle;
+ if ($('offerText')) $('offerText').textContent = offerMsg;
+ if ($('offer')) $('offer').hidden = false;
+ addDiploEvent(isAlliance ? 'alliance-request' : 'peace-offer', bot.name + ' requested ' + (isAlliance ? 'an alliance' : 'a peace treaty') + '.', bot);
 }
 function queueBotOffer(bot, kind) {
  const currentRelation = relation(HUMAN, bot.id);
@@ -244,13 +307,19 @@ function queueBotOffer(bot, kind) {
 }
 function answerBotOffer(accept) {
  const offer = activeOffer;
- activeOffer = null; $('offer').hidden = true;
+ activeOffer = null; if ($('offer')) $('offer').hidden = true;
  const bot = offer && players[offer.bot];
  if (bot && bot.alive && relation(HUMAN, bot.id) === offer.relation) {
    if (accept) {
      setRelation(HUMAN, bot.id, offer.kind);
-     showToast(bot.name + ' is now ' + (offer.kind === 'peace' ? 'at peace with you.' : 'your ally.'));
-   } else showToast('You rejected ' + bot.name + '\'s ' + (offer.kind === 'peace' ? 'peace offer.' : 'alliance request.'));
+     const msg = bot.name + ' is now ' + (offer.kind === 'peace' ? 'at peace with you.' : 'your ally.');
+     showToast(msg);
+     addDiploEvent(offer.kind === 'peace' ? 'peace-accept' : 'alliance-accept', 'You accepted ' + bot.name + '\'s ' + (offer.kind === 'peace' ? 'peace offer.' : 'alliance request.'), bot);
+   } else {
+     const msg = 'You rejected ' + bot.name + '\'s ' + (offer.kind === 'peace' ? 'peace offer.' : 'alliance request.');
+     showToast(msg);
+     addDiploEvent('reject', msg, bot);
+   }
  } else showToast('That diplomatic offer has expired.');
  showNextOffer();
 }
@@ -332,7 +401,11 @@ function botDiplomacyThink(bot, neighbors) {
   else if (state === 'peace' && rnd() < .08) kind = 'alliance';
   else if ((state === 'peace' || state === 'alliance') && strength > rivalStrength * 1.4 && rnd() < (state === 'alliance' ? .025 : .06)) {
     setRelation(bot.id, targetId, 'neutral');
-    if (targetId === HUMAN) showToast(bot.name + ' broke its treaty with you.');
+    if (targetId === HUMAN) {
+      const msg = bot.name + ' broke its treaty with you.';
+      showToast(msg);
+      addDiploEvent('break', msg, bot);
+    }
     return true;
   }
   if (!kind) return false;
@@ -416,9 +489,9 @@ function checkEnd() {
 let landCount = 0; const count_land = () => landCount || (landCount = land.reduce((a, b) => a + b, 0));
 function end(t) {
   over = true;
-  pendingOffers = []; activeOffer = null; $('offer').hidden = true;
+  pendingOffers = []; activeOffer = null; if ($('offer')) $('offer').hidden = true;
   const me = players[HUMAN], earned = Math.floor(me.tiles / 8) + (t === 'Victory!' ? 100 : 0) + 10;
-  save.coins += earned; persist(); updateCoins();
+  save.coins += earned; persist(); updateCoins(); updateControls();
   t += '<br><small>+' + earned + ' coins</small>'; const m = document.getElementById('msg'); m.hidden = false; m.innerHTML = t + '<br><button onclick="location.reload()">Play again</button>'; }
 
 // ---------- rendering ----------
@@ -537,12 +610,45 @@ function render() {
 const $ = id => document.getElementById(id);
 function updateHud() {
   const me = players[HUMAN];
+  if (!me) return;
   const fleet = ships.filter(s => s.p === HUMAN).length, sailing = navalAttacks.filter(a => a.p === HUMAN).length;
-  $('stats').textContent = 'Troops ' + Math.floor(me.troops) + '/' + cap(me, me.cities || 0) + ' · Gold ' + Math.floor(me.gold) + ' · Land ' + me.tiles + ' · Cities ' + (me.cities || 0) + ' · Ports ' + (me.ports || 0) + ' · Posts ' + (me.posts || 0) + ' · Ships ' + fleet + (sailing ? ' (' + sailing + ' sailing)' : '');
+  const c = cap(me, me.cities || 0);
+  const goldRate = ((me.tiles * 0.02 + (me.cities || 0) * 1 + (me.ports || 0) * 1.5 + 0.5) * 2).toFixed(1);
+  const troopRate = me.troops < c ? ((1 + Math.min(me.tiles, 600) * 0.05 * (1 - me.troops / c) + 0.2 * (me.cities || 0)) * 10).toFixed(1) : '0.0';
+
+  if ($('stats')) {
+    $('stats').innerHTML =
+      '<div class="stats-pills">' +
+        '<div class="stat-pill stat-gold" title="Current gold and gold income per second">' +
+          '<span class="stat-icon">🪙</span>' +
+          '<span class="stat-label">Gold</span>' +
+          '<b class="stat-val">' + Math.floor(me.gold) + '</b>' +
+          '<span class="stat-rate">(+' + goldRate + '/s)</span>' +
+        '</div>' +
+        '<div class="stat-pill stat-troops" title="Troop count, troop capacity, and growth per second">' +
+          '<span class="stat-icon">⚔️</span>' +
+          '<span class="stat-label">Troops</span>' +
+          '<b class="stat-val">' + Math.floor(me.troops) + '/' + c + '</b>' +
+          '<span class="stat-rate">(+' + troopRate + '/s)</span>' +
+        '</div>' +
+        '<div class="stat-pill stat-land" title="Territory tiles">' +
+          '<span class="stat-icon">🗺️</span>' +
+          '<span class="stat-label">Land</span>' +
+          '<b class="stat-val">' + me.tiles + '</b>' +
+        '</div>' +
+      '</div>' +
+      '<div class="stats-assets">' +
+        '<span class="stat-asset" title="Cities (boosts troops & gold)"><span class="asset-icon">🏛️</span> Cities: <b>' + (me.cities || 0) + '</b></span>' +
+        '<span class="stat-asset" title="Ports (boosts gold)"><span class="asset-icon">⚓</span> Ports: <b>' + (me.ports || 0) + '</b></span>' +
+        '<span class="stat-asset" title="Defense Posts (triples defense)"><span class="asset-icon">🛡️</span> Posts: <b>' + (me.posts || 0) + '</b></span>' +
+        '<span class="stat-asset" title="Fleet"><span class="asset-icon">⛵</span> Ships: <b>' + fleet + '</b>' + (sailing ? ' <small class="stat-sailing">(' + sailing + ' sailing)</small>' : '') + '</span>' +
+      '</div>';
+  }
+
   $('bCity').disabled = me.gold < COST.city; $('bPort').disabled = me.gold < COST.port;
   $('bDef').disabled = me.gold < COST.defense; $('bShip').disabled = me.gold < COST.ship || fleet >= 8;
-  $('board').innerHTML = '<b>Leaderboard</b><br>' + players.filter(p => p && p.alive).sort((a, b) => b.tiles - a.tiles).slice(0, 8)
-    .map(p => '<span style="color:rgb(' + p.color + ')">■</span> ' + (p.flag ? '<i class="fl" style="background:' + flagCss(p.flag) + '"></i>' : '') + p.name + ' ' + p.tiles).join('<br>');
+  $('board').innerHTML = '<div class="board-header"><b>Leaderboard</b></div>' + players.filter(p => p && p.alive).sort((a, b) => b.tiles - a.tiles).slice(0, 8)
+    .map(p => '<div class="board-row"><span class="board-color" style="background:rgb(' + p.color + ')"></span> ' + (p.flag ? '<i class="fl" style="background:' + flagCss(p.flag) + '"></i>' : '') + '<span class="board-name">' + p.name + '</span> <span class="board-tiles">' + p.tiles + '</span></div>').join('');
 }
 function showToast(message) {
   const toast = $('toast'); toast.textContent = message; toast.classList.add('show');
@@ -698,23 +804,54 @@ function renderShop() {
 function rgbHex(c) { return c.length === 4 ? '#' + c[1] + c[1] + c[2] + c[2] + c[3] + c[3] : c; }
 $('shopOpen').onclick = () => { $('shop').hidden = false; renderShop(); };
 $('shopClose').onclick = () => { $('shop').hidden = true; };
+function updateControls() {
+  const pBtn = $('bPause'), uBtn = $('bUnpause'), lBtn = $('bLeave');
+  if (!pBtn || !uBtn || !lBtn) return;
+  const inGame = started && !over;
+  pBtn.disabled = !inGame || paused;
+  uBtn.disabled = !inGame || !paused;
+  lBtn.disabled = !started;
+  pBtn.classList.toggle('active', inGame && !paused);
+  uBtn.classList.toggle('active', inGame && paused);
+}
 function showMenu() {
   $('mapSelect').value = mapKind; $('diffSelect').value = difficulty; $('botSelect').value = BOTS;
   $('startSelect').value = SETTINGS.start; $('winSelect').value = SETTINGS.winPct;
   $('troopSelect').value = SETTINGS.troops; $('goldSelect').value = SETTINGS.gold;
   $('seaSelect').value = Math.round(-SETTINGS.sea * 100); updateCoins();
   paused = true; $('menu').hidden = false; $('menuStart').hidden = started; $('menuResume').hidden = !started;
+  updateControls();
 }
 function beginGame(reset) {
   if (reset) { genMap(); newGame(); drawTerrain(); fit(); }
   started = true; paused = false; $('menu').hidden = true; $('msg').hidden = true; updateHud(); setMode(null);
+  updateControls();
 }
 $('menuStart').onclick = () => beginGame(true);
-$('menuResume').onclick = () => { paused = false; $('menu').hidden = true; };
+$('menuResume').onclick = () => { paused = false; $('menu').hidden = true; updateControls(); };
 $('menuNew').onclick = () => beginGame(true);
-$('bMenu').onclick = showMenu;
-addEventListener('keydown', e => { if (e.key === 'Escape' && started && !over) showMenu(); });
+if ($('bMenu')) $('bMenu').onclick = showMenu;
+if ($('bPause')) $('bPause').onclick = () => {
+  if (!started || over || paused) return;
+  paused = true;
+  updateControls();
+  showToast('Game paused');
+};
+if ($('bUnpause')) $('bUnpause').onclick = () => {
+  if (!started || over || !paused) return;
+  paused = false;
+  $('menu').hidden = true;
+  updateControls();
+  showToast('Game resumed');
+};
+if ($('bLeave')) $('bLeave').onclick = () => {
+  if (!started) return;
+  paused = true;
+  started = false;
+  showMenu();
+};
+addEventListener('keydown', e => { if (e.key === 'Escape' && started && !over) { if ($('menu').hidden) showMenu(); else { paused = false; $('menu').hidden = true; updateControls(); } } });
 addEventListener('resize', () => { resize(); fit(); });
 
-genMap(); newGame(); drawTerrain(); resize(); fit(); updateHud(); updateCoins();
+genMap(); newGame(); drawTerrain(); resize(); fit(); updateHud(); updateCoins(); updateControls(); renderDiploFeed();
 setInterval(step, TICK); requestAnimationFrame(render);

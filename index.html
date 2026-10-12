@@ -44,30 +44,57 @@
     <button id="shopClose">Close</button>
   </section>
 </div>
+<div id="topControls" class="top-controls" aria-label="Game controls">
+  <button id="bPause" class="ctrl-btn" title="Pause game"><span class="ctrl-icon">⏸</span> Pause</button>
+  <button id="bUnpause" class="ctrl-btn" title="Unpause game"><span class="ctrl-icon">▶</span> Unpause</button>
+  <button id="bLeave" class="ctrl-btn ctrl-leave" title="Leave match to menu"><span class="ctrl-icon">🚪</span> Leave</button>
+</div>
 <div id="hud">
-  <div class="hud-top"><div id="stats"></div><button id="bMenu" title="Pause">Ⅱ</button></div>
-  <label>Send troops: <input id="pct" type="range" min="5" max="100" value="50"><span id="pctv">50%</span></label>
-  <div id="btns">
-    <button id="bCity">City (<span id="cCity"></span>g)</button>
-    <button id="bPort">Port (<span id="cPort"></span>g)</button>
-    <button id="bDef">Defense post (<span id="cDef"></span>g)</button>
-    <button id="bShip">Ship (<span id="cShip"></span>g)</button>
-    <button id="bCancel">Cancel attack</button>
+  <button id="bMenu" hidden title="Menu">Ⅱ</button>
+  <div class="hud-stats-row">
+    <div id="stats"></div>
+  </div>
+  <div class="hud-action-row">
+    <label id="sliderWrap" class="troop-slider-wrap">
+      <span class="slider-title">Send troops:</span>
+      <input id="pct" type="range" min="5" max="100" value="50">
+      <span id="pctv">50%</span>
+    </label>
+    <div id="btns">
+      <button id="bCity" class="btn-build"><span class="btn-icon">🏛️</span> City (<span id="cCity"></span>g)</button>
+      <button id="bPort" class="btn-build"><span class="btn-icon">⚓</span> Port (<span id="cPort"></span>g)</button>
+      <button id="bDef" class="btn-build"><span class="btn-icon">🛡️</span> Defense (<span id="cDef"></span>g)</button>
+      <button id="bShip" class="btn-build"><span class="btn-icon">⛵</span> Ship (<span id="cShip"></span>g)</button>
+      <button id="bCancel" class="btn-cancel"><span class="btn-icon">🚫</span> Cancel attack</button>
+    </div>
   </div>
   <div id="help">Click land to attack · Right-click a nation for diplomacy · Build on your territory · Build ships at ports</div>
 </div>
 <div id="board"></div>
-<div id="toast" role="status" aria-live="polite"></div>
-<div id="offer" hidden role="dialog" aria-modal="true" aria-labelledby="offerTitle">
-  <section id="offerCard">
-    <h2 id="offerTitle">Diplomatic offer</h2>
-    <p id="offerText"></p>
-    <div class="offer-actions">
-      <button id="offerAccept">Accept</button>
-      <button id="offerReject">Reject</button>
+<aside id="diploPanel" class="diplo-panel" aria-label="Diplomacy Feed">
+  <div class="diplo-header">
+    <div class="diplo-title-wrap">
+      <span class="diplo-icon">🤝</span>
+      <span class="diplo-title">Diplomacy</span>
     </div>
-  </section>
-</div>
+    <span id="diploStatus" class="diplo-status-pill">Active</span>
+  </div>
+  <div id="offer" hidden class="diplo-offer-box" role="region" aria-labelledby="offerTitle">
+    <section id="offerCard">
+      <div class="offer-badge">Incoming Request</div>
+      <h3 id="offerTitle">Diplomatic offer</h3>
+      <p id="offerText"></p>
+      <div class="offer-actions">
+        <button id="offerAccept" class="btn-accept">Accept</button>
+        <button id="offerReject" class="btn-reject">Reject</button>
+      </div>
+    </section>
+  </div>
+  <div id="diploFeed" class="diplo-feed">
+    <div class="diplo-placeholder" id="diploEmpty">No diplomatic events yet. Right-click a nation on the map to interact.</div>
+  </div>
+</aside>
+<div id="toast" role="status" aria-live="polite"></div>
 <div id="msg" hidden></div>
 <script src="src/game.js"></script>
 </body></html>
