@@ -2,7 +2,7 @@
 // Original real-time territory conquest game. Simulation runs on a hidden
 // grid; rendering is resolution-independent and smoothed (no visible tiles).
 const W = 192, H = 120, N = W * H, BOTS = 14, TICK = 100;
-const COST = { city: 150, port: 100 };
+const COST = { city: 150, port: 100, ship: 220 };
 const rnd = Math.random;
 
 // ---------- map generation (value noise) ----------
@@ -31,7 +31,8 @@ function genMap() {
 // ---------- state ----------
 const owner = new Uint8Array(N);          // 0 = unclaimed
 const building = new Uint8Array(N);       // 0 none, 1 city, 2 port
-let players = [], attacks = [], tick = 0, over = false, mode = null;
+let players = [], attacks = [], ships = [], navalAttacks = [], tick = 0, over = false, mode = null;
+let started = false, paused = true, toastTimer;
 const HUMAN = 1;
 const nbrs = i => {
   const x = i % W, r = [];
@@ -42,7 +43,7 @@ const nbrs = i => {
 const isCoast = i => nbrs(i).some(j => !land[j]);
 
 function newGame() {
-  owner.fill(0); building.fill(0); attacks = []; tick = 0; over = false; players = [null];
+  owner.fill(0); building.fill(0); attacks = []; ships = []; navalAttacks = []; tick = 0; over = false; players = [null]; mode = null;
   const spots = [];
   for (let i = 0; i < N; i++) if (land[i]) spots.push(i);
   const hues = [];
@@ -150,11 +151,54 @@ function tryBuild(pid, type, i) {
   if (type === 2 && !isCoast(i)) return false;
   p.gold -= cost; building[i] = type; dirty = true; return true;
 }
+function tryBuildShip(pid, i) {
+  const p = players[pid];
+  if (i < 0 || owner[i] !== pid || building[i] !== 2 || p.gold < COST.ship || ships.filter(s => s.p === pid).length >= 8) return false;
+  p.gold -= COST.ship; ships.push({ p: pid, dock: i, busy: false }); dirty = true; return true;
+}
+function canReach(pid, i) { return nbrs(i).some(j => owner[j] === pid); }
+function startNavalAttack(pid, target, frac) {
+  const p = players[pid], ship = ships.find(s => s.p === pid && !s.busy);
+  if (!ship) { showToast('Build a ship at one of your ports first.'); return false; }
+  if (!land[target] || !isCoast(target)) { showToast('Ships can only land on coastal territory.'); return false; }
+  if (owner[target] === pid) return false;
+  const send = Math.floor(p.troops * frac);
+  if (send < 5) { showToast('You need at least 5 troops for an attack.'); return false; }
+  p.troops -= send; ship.busy = true;
+  const distance = Math.hypot(ship.dock % W - target % W, ((ship.dock / W) | 0) - ((target / W) | 0));
+  navalAttacks.push({ p: pid, target, troops: send, ship, progress: 0, duration: Math.max(12, Math.ceil(distance / 2)) });
+  showToast('Fleet dispatched to the coast.');
+  return true;
+}
+function stepNavalAttacks() {
+  const active = [];
+  for (const a of navalAttacks) {
+    const attacker = players[a.p];
+    if (!attacker || !attacker.alive) { a.ship.busy = false; continue; }
+    if (owner[a.target] === a.p) {
+      attacker.troops += a.troops; a.ship.busy = false; continue;
+    }
+    if (++a.progress < a.duration) { active.push(a); continue; }
+    const def = owner[a.target] ? players[owner[a.target]] : null;
+    const cost = def ? 1.5 + def.troops / Math.max(1, def.tiles) * 1.5 : 1;
+    if (a.troops >= cost) {
+      if (def) { def.troops = Math.max(0, def.troops - cost * .8); def.tiles--; }
+      owner[a.target] = a.p; attacker.tiles++;
+      attacker.troops += a.troops - cost; dirty = true;
+      a.ship.busy = false;
+      if (a.p === HUMAN) showToast('Naval landing secured!');
+    } else {
+      a.ship.busy = false; ships = ships.filter(s => s !== a.ship);
+      if (a.p === HUMAN) showToast('The landing failed and your ship was lost.');
+    }
+  }
+  navalAttacks = active;
+}
 
 // ---------- loop ----------
 function step() {
-  if (over) return;
-  tick++; stepAttacks();
+  if (!started || paused || over) return;
+  tick++; stepAttacks(); stepNavalAttacks();
   for (const b of players) if (b && b.bot && b.alive && ++b.think % 15 === 0) botThink(b);
   economy(); checkEnd(); updateHud();
 }
@@ -221,6 +265,19 @@ function render() {
     if (building[i] === 1) ctx.rect(x - 1, y - 1, 2, 2); else { ctx.moveTo(x, y - 1.2); ctx.lineTo(x + 1.1, y + 1); ctx.lineTo(x - 1.1, y + 1); ctx.closePath(); }
     ctx.fill(); ctx.stroke();
   }
+  for (const ship of ships) {
+    const attack = navalAttacks.find(a => a.ship === ship);
+    const sea = nbrs(ship.dock).find(j => !land[j]);
+    const dockX = sea === undefined ? ship.dock % W + .5 : sea % W + .5;
+    const dockY = sea === undefined ? ((ship.dock / W) | 0) + .5 : ((sea / W) | 0) + .5;
+    const x = attack ? dockX + (attack.target % W + .5 - dockX) * attack.progress / attack.duration : dockX;
+    const y = attack ? dockY + (((attack.target / W) | 0) + .5 - dockY) * attack.progress / attack.duration : dockY;
+    ctx.save(); ctx.translate(x, y); ctx.scale(1.2, 1.2);
+    ctx.fillStyle = '#f4f4e8'; ctx.strokeStyle = '#14324a'; ctx.lineWidth = .2;
+    ctx.beginPath(); ctx.moveTo(-.9, .1); ctx.lineTo(.9, .1); ctx.lineTo(.55, .55); ctx.lineTo(-.55, .55); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-.05, -.9); ctx.lineTo(-.05, .05); ctx.lineTo(.62, .05); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.restore();
+  }
   for (const p of players) if (p && p.alive && p.tiles > 20) { // labels at centroid
     if (p.cx === undefined || tick % 20 === 0) { let sx = 0, sy = 0, c = 0; for (let i = 0; i < N; i++) if (owner[i] === p.id) { sx += i % W; sy += (i / W) | 0; c++; } p.cx = sx / c; p.cy = sy / c; }
     ctx.fillStyle = '#fff'; ctx.strokeStyle = '#000'; ctx.lineWidth = .4; ctx.font = 'bold ' + Math.min(6, 2 + Math.sqrt(p.tiles) / 6) + 'px sans-serif'; ctx.textAlign = 'center';
@@ -234,10 +291,16 @@ function render() {
 const $ = id => document.getElementById(id);
 function updateHud() {
   const me = players[HUMAN];
-  $('stats').textContent = 'Troops ' + Math.floor(me.troops) + '/' + cap(me, me.cities || 0) + ' · Gold ' + Math.floor(me.gold) + ' · Land ' + me.tiles + ' · Cities ' + (me.cities || 0) + ' · Ports ' + (me.ports || 0);
+  const fleet = ships.filter(s => s.p === HUMAN).length, sailing = navalAttacks.filter(a => a.p === HUMAN).length;
+  $('stats').textContent = 'Troops ' + Math.floor(me.troops) + '/' + cap(me, me.cities || 0) + ' · Gold ' + Math.floor(me.gold) + ' · Land ' + me.tiles + ' · Cities ' + (me.cities || 0) + ' · Ports ' + (me.ports || 0) + ' · Ships ' + fleet + (sailing ? ' (' + sailing + ' sailing)' : '');
   $('bCity').disabled = me.gold < COST.city; $('bPort').disabled = me.gold < COST.port;
+  $('bShip').disabled = me.gold < COST.ship || fleet >= 8;
   $('board').innerHTML = '<b>Leaderboard</b><br>' + players.filter(p => p && p.alive).sort((a, b) => b.tiles - a.tiles).slice(0, 8)
     .map(p => '<span style="color:rgb(' + p.color + ')">■</span> ' + p.name + ' ' + p.tiles).join('<br>');
+}
+function showToast(message) {
+  const toast = $('toast'); toast.textContent = message; toast.classList.add('show');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => toast.classList.remove('show'), 2200);
 }
 function toTile(e) { return { x: Math.floor((e.offsetX - cam.x) / cam.z), y: Math.floor((e.offsetY - cam.y) / cam.z) }; }
 let drag = null;
@@ -247,18 +310,60 @@ cv.onmouseup = e => {
   const d = drag; drag = null; if (!d || d.moved || over) return;
   const t = toTile(e); if (t.x < 0 || t.y < 0 || t.x >= W || t.y >= H) return;
   const i = t.y * W + t.x;
-  if (mode) { tryBuild(HUMAN, mode === 'city' ? 1 : 2, i); setMode(null); return; }
+  if (mode) {
+    if (mode === 'ship') {
+      if (tryBuildShip(HUMAN, i)) { showToast('Ship commissioned. Select a coastal enemy to launch it.'); setMode(null); }
+      else if (owner[i] !== HUMAN || building[i] !== 2) showToast('Ships must be built on one of your ports.');
+      else if (ships.filter(s => s.p === HUMAN).length >= 8) showToast('Your fleet is full (8 ships maximum).');
+      else showToast('Not enough gold to build a ship.');
+      return;
+    }
+    const type = mode === 'city' ? 1 : 2;
+    if (tryBuild(HUMAN, type, i)) { showToast(type === 1 ? 'City built: troop growth increased.' : 'Port built: gold income increased.'); setMode(null); }
+    else if (owner[i] !== HUMAN) showToast('Buildings can only be placed on your own territory.');
+    else if (building[i]) showToast('That territory already has a building.');
+    else if (type === 2 && !isCoast(i)) showToast('Ports must be placed on the coast.');
+    else showToast('Not enough gold to build here.');
+    return;
+  }
   if (!land[i]) return;
-  if (owner[i] !== HUMAN) startAttack(HUMAN, owner[i], $('pct').value / 100);
+  if (owner[i] === HUMAN) return;
+  if (canReach(HUMAN, i)) startAttack(HUMAN, owner[i], $('pct').value / 100);
+  else if (isCoast(i)) startNavalAttack(HUMAN, i, $('pct').value / 100);
+  else showToast('That territory is out of reach. Build a ship to strike the coast.');
 };
 cv.onwheel = e => { e.preventDefault(); const k = e.deltaY < 0 ? 1.15 : 1 / 1.15, nz = Math.max(2, Math.min(40, cam.z * k));
   cam.x = e.offsetX - (e.offsetX - cam.x) * nz / cam.z; cam.y = e.offsetY - (e.offsetY - cam.y) * nz / cam.z; cam.z = nz; };
-function setMode(m) { mode = mode === m ? null : m; $('bCity').classList.toggle('on', mode === 'city'); $('bPort').classList.toggle('on', mode === 'port'); }
-$('bCity').onclick = () => setMode('city'); $('bPort').onclick = () => setMode('port');
-$('bCancel').onclick = () => { const me = players[HUMAN]; attacks = attacks.filter(a => { if (a.p === HUMAN) { me.troops += a.troops * .8; return false; } return true; }); };
+function setMode(m) {
+  mode = mode === m ? null : m;
+  $('bCity').classList.toggle('on', mode === 'city'); $('bPort').classList.toggle('on', mode === 'port'); $('bShip').classList.toggle('on', mode === 'ship');
+  $('help').textContent = mode === 'city' ? 'City mode: click your empty land to build.' : mode === 'port' ? 'Port mode: click empty coastal land to build.' : mode === 'ship' ? 'Ship mode: click one of your ports to commission a ship.' : 'Click land to attack · Build on your territory · Build ships at ports';
+}
+$('bCity').onclick = () => setMode('city'); $('bPort').onclick = () => setMode('port'); $('bShip').onclick = () => setMode('ship');
+$('bCancel').onclick = () => {
+  const me = players[HUMAN];
+  attacks = attacks.filter(a => { if (a.p === HUMAN) { me.troops += a.troops * .8; return false; } return true; });
+  navalAttacks = navalAttacks.filter(a => {
+    if (a.p !== HUMAN) return true;
+    me.troops += a.troops * .8; a.ship.busy = false; return false;
+  });
+  showToast('Orders cancelled. Most committed troops returned.');
+};
 $('pct').oninput = () => $('pctv').textContent = $('pct').value + '%';
-$('cCity').textContent = COST.city; $('cPort').textContent = COST.port;
-addEventListener('resize', () => { resize(); });
+$('cCity').textContent = COST.city; $('cPort').textContent = COST.port; $('cShip').textContent = COST.ship;
+function showMenu() {
+  paused = true; $('menu').hidden = false; $('menuStart').hidden = started; $('menuResume').hidden = !started;
+}
+function beginGame(reset) {
+  if (reset) newGame();
+  started = true; paused = false; $('menu').hidden = true; $('msg').hidden = true; updateHud(); setMode(null);
+}
+$('menuStart').onclick = () => beginGame(false);
+$('menuResume').onclick = () => { paused = false; $('menu').hidden = true; };
+$('menuNew').onclick = () => beginGame(true);
+$('bMenu').onclick = showMenu;
+addEventListener('keydown', e => { if (e.key === 'Escape' && started && !over) showMenu(); });
+addEventListener('resize', () => { resize(); fit(); });
 
 genMap(); newGame(); drawTerrain(); resize(); fit(); updateHud();
 setInterval(step, TICK); requestAnimationFrame(render);
