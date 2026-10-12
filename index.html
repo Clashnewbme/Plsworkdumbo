@@ -8,12 +8,6 @@
   <section id="menuCard">
     <p class="eyebrow">Developed by Freeze Software.</p>
     <h1>Sovereign</h1>
-    <p>Grow your territory, raise an army, and take the coast with your fleet.</p>
-    <div class="how-to">
-      <span><b>01</b> Click neighboring land to expand or attack.</span>
-     <span><b>02</b> Build cities and ports on your territory.</span>
-      <span><b>03</b> Build ships at ports to strike distant shores.</span>
-    </div>
     <div class="options">
       <label>Country name <input id="nameInput" maxlength="16" autocomplete="off"></label>
       <label>Map <select id="mapSelect"></select></label>
@@ -27,30 +21,27 @@
       <label>Territory colour <input id="colorInput" type="color" value="#2a8cff"></label>
     </div>
     <div class="menu-actions">
-      <button id="menuStart">Begin conquest</button>
       <button id="menuResume" hidden>Resume game</button>
       <button id="menuNew">New game</button>
-      <button id="shopOpen">Shop &amp; locker (<span id="coins">0</span> coins)</button>
+      <button id="shopOpen">Shop (<span id="coins">0</span> coins)</button>
     </div>
     <p class="menu-tip">currently being developed.</p>
   </section>
 </div>
 <div id="shop" hidden>
   <section id="shopCard">
-    <div class="hud-top"><h2>Shop &amp; Locker</h2><span>Coins: <b id="shopCoins">0</b></span></div>
-    <p class="menu-tip">Earn coins by playing: land held at the end plus a bonus for victory. Buy items, then equip them.</p>
+    <div class="hud-top"><h2>Shop</h2><span>Coins: <b id="shopCoins">0</b></span></div>
     <div id="shopTabs"></div>
     <div id="shopGrid"></div>
     <button id="shopClose">Close</button>
   </section>
 </div>
 <div id="topControls" class="top-controls" aria-label="Game controls">
-  <button id="bPause" class="ctrl-btn" title="Pause game"><span class="ctrl-icon">⏸</span> Pause</button>
-  <button id="bUnpause" class="ctrl-btn" title="Unpause game"><span class="ctrl-icon">▶</span> Unpause</button>
-  <button id="bLeave" class="ctrl-btn ctrl-leave" title="Leave match to menu"><span class="ctrl-icon">🚪</span> Leave</button>
+  <button id="bPause" class="ctrl-btn" title="Pause game"><span class="ctrl-icon"></span>Pause</button>
+  <button id="bUnpause" class="ctrl-btn" title="Unpause game"><span class="ctrl-icon"></span>Unpause</button>
+  <button id="bLeave" class="ctrl-btn ctrl-leave" title="Leave match to menu"><span class="ctrl-icon"></span>Forfit</button>
 </div>
 <div id="hud">
-  <button id="bMenu" hidden title="Menu">Ⅱ</button>
   <div class="hud-stats-row">
     <div id="stats"></div>
   </div>
@@ -58,24 +49,22 @@
     <label id="sliderWrap" class="troop-slider-wrap">
       <span class="slider-title">Send troops:</span>
       <input id="pct" type="range" min="5" max="100" value="50">
-      <span id="pctv">50%</span>
+      <span id="pctv">20%</span>
     </label>
     <div id="btns">
-      <button id="bCity" class="btn-build"><span class="btn-icon">🏛️</span> City (<span id="cCity"></span>g)</button>
-      <button id="bPort" class="btn-build"><span class="btn-icon">⚓</span> Port (<span id="cPort"></span>g)</button>
-      <button id="bDef" class="btn-build"><span class="btn-icon">🛡️</span> Defense (<span id="cDef"></span>g)</button>
-      <button id="bShip" class="btn-build"><span class="btn-icon">⛵</span> Ship (<span id="cShip"></span>g)</button>
-      <button id="bCancel" class="btn-cancel"><span class="btn-icon">🚫</span> Cancel attack</button>
+      <button id="bCity" class="btn-build"><span class="btn-icon"></span> City (<span id="cCity"></span>g)</button>
+      <button id="bPort" class="btn-build"><span class="btn-icon"></span> Port (<span id="cPort"></span>g)</button>
+      <button id="bDef" class="btn-build"><span class="btn-icon"></span> Defense (<span id="cDef"></span>g)</button>
+      <button id="bShip" class="btn-build"><span class="btn-icon"></span> Ship (<span id="cShip"></span>g)</button>
+      <button id="bCancel" class="btn-cancel"><span class="btn-icon"></span> Cancel attack</button>
     </div>
   </div>
-  <div id="help">Click land to attack · Right-click a nation for diplomacy · Build on your territory · Build ships at ports</div>
 </div>
 <div id="board"></div>
 <aside id="diploPanel" class="diplo-panel" aria-label="Diplomacy Feed">
   <div class="diplo-header">
     <div class="diplo-title-wrap">
-      <span class="diplo-icon">🤝</span>
-      <span class="diplo-title">Diplomacy</span>
+      <span class="diplo-title">Notifications</span>
     </div>
     <span id="diploStatus" class="diplo-status-pill">Active</span>
   </div>
@@ -91,7 +80,7 @@
     </section>
   </div>
   <div id="diploFeed" class="diplo-feed">
-    <div class="diplo-placeholder" id="diploEmpty">No diplomatic events yet. Right-click a nation on the map to interact.</div>
+    <div class="diplo-placeholder" id="diploEmpty">None.</div>
   </div>
 </aside>
 <div id="toast" role="status" aria-live="polite"></div>
