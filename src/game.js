@@ -19,12 +19,21 @@ function makeNoise() {
   };
 }
 const land = new Uint8Array(N), height = new Float32Array(N);
-function genMap() {
+const MAPS = {
+  continents: { name: 'Continents', a: .5, b: 1, fall: .5, sea: .36 },
+  islands: { name: 'Islands', a: 1.4, b: 2.4, fall: .35, sea: .45 },
+  archipelago: { name: 'Archipelago', a: 2.2, b: 3.6, fall: .3, sea: .5 },
+  pangaea: { name: 'Pangaea', a: .4, b: .8, fall: .9, sea: .3 }
+};
+const COUNTRIES = ['France', 'Germany', 'Brazil', 'Japan', 'Egypt', 'Canada', 'India', 'Mexico', 'Spain', 'Italy', 'Kenya', 'Norway', 'Peru', 'Turkey', 'Poland', 'Australia', 'Argentina', 'Sweden'];
+let mapKind = 'continents', sea = .36;
+function genMap(kind) {
+  const m = MAPS[kind || mapKind] || MAPS.continents; sea = m.sea; landCount = 0;
   const n1 = makeNoise(), n2 = makeNoise();
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
     const dx = x / W - .5, dy = y / H - .5;
-    const h = n1(x, y, .5) * .6 + n2(x, y, 1) * .4 - Math.hypot(dx, dy) * .5;
-    height[y * W + x] = h; land[y * W + x] = h > .36 ? 1 : 0;
+    const h = n1(x, y, m.a) * .6 + n2(x, y, m.b) * .4 - Math.hypot(dx, dy) * m.fall;
+    height[y * W + x] = h; land[y * W + x] = h > sea ? 1 : 0;
   }
 }
 
@@ -32,7 +41,7 @@ function genMap() {
 const owner = new Uint8Array(N);          // 0 = unclaimed
 const building = new Uint8Array(N);       // 0 none, 1 city, 2 port
 let players = [], attacks = [], ships = [], navalAttacks = [], tick = 0, over = false, mode = null;
-let started = false, paused = true, toastTimer;
+let playerName = 'You', started = false, paused = true, toastTimer;
 const HUMAN = 1;
 const nbrs = i => {
   const x = i % W, r = [];
@@ -42,7 +51,9 @@ const nbrs = i => {
 };
 const isCoast = i => nbrs(i).some(j => !land[j]);
 
+let botOffset = 0;
 function newGame() {
+  botOffset = (rnd() * COUNTRIES.length) | 0;
   owner.fill(0); building.fill(0); attacks = []; ships = []; navalAttacks = []; tick = 0; over = false; players = [null]; mode = null;
   const spots = [];
   for (let i = 0; i < N; i++) if (land[i]) spots.push(i);
@@ -52,7 +63,7 @@ function newGame() {
     do { s = spots[(rnd() * spots.length) | 0]; tries++; }
     while (tries < 400 && players.some(q => q && Math.hypot(q.sx - s % W, q.sy - ((s / W) | 0)) < 18));
     const hue = p === 1 ? 210 : (p * 137) % 360;
-    const pl = { id: p, name: p === 1 ? 'You' : 'Bot ' + (p - 1), bot: p !== 1, sx: s % W, sy: (s / W) | 0,
+    const pl = { id: p, name: p === 1 ? playerName : COUNTRIES[(p - 2 + botOffset) % COUNTRIES.length], bot: p !== 1, sx: s % W, sy: (s / W) | 0,
       troops: 100, gold: 100, tiles: 0, alive: true, color: hsl(hue, p === 1 ? 90 : 65, 52), think: (rnd() * 20) | 0 };
     players.push(pl);
     for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) {
@@ -116,7 +127,7 @@ function stepAttacks() {
     while (n-- > 0 && a.troops > 0 && list.length) {
       const k = (rnd() * list.length) | 0, j = list.splice(k, 1)[0];
       if (done.has(j) || owner[j] !== a.t) continue;
-      const cost = def ? 1.5 + def.troops / Math.max(1, def.tiles) * 1.5 : 1;
+      const cost = def ? 1 + def.troops / Math.max(1, def.tiles) * .7 : 1;
       if (a.troops < cost) { att.troops += a.troops; a.troops = 0; break; }
       a.troops -= cost; done.add(j);
       if (def) { def.troops = Math.max(0, def.troops - cost * .8); def.tiles--; }
@@ -180,7 +191,7 @@ function stepNavalAttacks() {
     }
     if (++a.progress < a.duration) { active.push(a); continue; }
     const def = owner[a.target] ? players[owner[a.target]] : null;
-    const cost = def ? 1.5 + def.troops / Math.max(1, def.tiles) * 1.5 : 1;
+    const cost = def ? 1 + def.troops / Math.max(1, def.tiles) * .7 : 1;
     if (a.troops >= cost) {
       if (def) { def.troops = Math.max(0, def.troops - cost * .8); def.tiles--; }
       owner[a.target] = a.p; attacker.tiles++;
@@ -227,8 +238,8 @@ function drawTerrain() {
     const fx = (px + .5) / SS - .5, fy = (py + .5) / SS - .5, x0 = Math.floor(fx), y0 = Math.floor(fy), tx = fx - x0, ty = fy - y0;
     const h = (hv(x0, y0) * (1 - tx) + hv(x0 + 1, y0) * tx) * (1 - ty) + (hv(x0, y0 + 1) * (1 - tx) + hv(x0 + 1, y0 + 1) * tx) * ty;
     let r, g, b;
-    if (h > .36) { const t = Math.min(1, (h - .36) * 3); r = 110 + t * 60; g = 150 - t * 30; b = 85 + t * 30; if (h < .375) { r = 215; g = 205; b = 150; } }
-    else { const t = Math.max(0, (h - .15) / .21); r = 15 + t * 35; g = 60 + t * 80; b = 110 + t * 70; }
+    if (h > sea) { const t = Math.min(1, (h - sea) * 3); r = g = b = 235 - t * 60; if (h < sea + .015) r = g = b = 250; }
+    else { const t = Math.max(0, (h - .15) / .21); r = g = b = 10 + t * 30; }
     const o = (py * W * SS + px) * 4; d[o] = r; d[o + 1] = g; d[o + 2] = b; d[o + 3] = 255;
   }
   tctx.putImageData(img, 0, 0);
@@ -250,7 +261,7 @@ function resize() { cv.width = innerWidth; cv.height = innerHeight; }
 function fit() { cam.z = Math.min(cv.width / W, cv.height / H); cam.x = (cv.width - W * cam.z) / 2; cam.y = (cv.height - H * cam.z) / 2; }
 function render() {
   if (dirty) drawOwners();
-  ctx.fillStyle = '#0b2a4a'; ctx.fillRect(0, 0, cv.width, cv.height);
+  ctx.fillStyle = '#000'; ctx.fillRect(0, 0, cv.width, cv.height);
   ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
   ctx.save(); ctx.translate(cam.x, cam.y); ctx.scale(cam.z, cam.z);
   ctx.drawImage(terrain, 0, 0, W, H);
@@ -273,7 +284,7 @@ function render() {
     const x = attack ? dockX + (attack.target % W + .5 - dockX) * attack.progress / attack.duration : dockX;
     const y = attack ? dockY + (((attack.target / W) | 0) + .5 - dockY) * attack.progress / attack.duration : dockY;
     ctx.save(); ctx.translate(x, y); ctx.scale(1.2, 1.2);
-    ctx.fillStyle = '#f4f4e8'; ctx.strokeStyle = '#14324a'; ctx.lineWidth = .2;
+    ctx.fillStyle = '#fff'; ctx.strokeStyle = '#000'; ctx.lineWidth = .2;
     ctx.beginPath(); ctx.moveTo(-.9, .1); ctx.lineTo(.9, .1); ctx.lineTo(.55, .55); ctx.lineTo(-.55, .55); ctx.closePath(); ctx.fill(); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(-.05, -.9); ctx.lineTo(-.05, .05); ctx.lineTo(.62, .05); ctx.closePath(); ctx.fill(); ctx.stroke();
     ctx.restore();
@@ -351,14 +362,23 @@ $('bCancel').onclick = () => {
 };
 $('pct').oninput = () => $('pctv').textContent = $('pct').value + '%';
 $('cCity').textContent = COST.city; $('cPort').textContent = COST.port; $('cShip').textContent = COST.ship;
+$('nameInput').value = playerName = (function () { try { return localStorage.getItem('pdName') || 'You'; } catch (e) { return 'You'; } })();
+$('nameInput').oninput = () => {
+  playerName = $('nameInput').value.trim().slice(0, 16) || 'You';
+  try { localStorage.setItem('pdName', playerName); } catch (e) { /* ignore */ }
+  if (players[HUMAN]) players[HUMAN].name = playerName;
+};
+$('mapSelect').innerHTML = Object.keys(MAPS).map(k => '<option value="' + k + '">' + MAPS[k].name + '</option>').join('');
+$('mapSelect').onchange = () => { mapKind = $('mapSelect').value; if (!started) { genMap(); newGame(); drawTerrain(); updateHud(); } };
 function showMenu() {
+  $('mapSelect').value = mapKind;
   paused = true; $('menu').hidden = false; $('menuStart').hidden = started; $('menuResume').hidden = !started;
 }
 function beginGame(reset) {
-  if (reset) newGame();
+  if (reset) { genMap(); newGame(); drawTerrain(); fit(); }
   started = true; paused = false; $('menu').hidden = true; $('msg').hidden = true; updateHud(); setMode(null);
 }
-$('menuStart').onclick = () => beginGame(false);
+$('menuStart').onclick = () => beginGame(true);
 $('menuResume').onclick = () => { paused = false; $('menu').hidden = true; };
 $('menuNew').onclick = () => beginGame(true);
 $('bMenu').onclick = showMenu;
