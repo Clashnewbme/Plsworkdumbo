@@ -1,0 +1,66 @@
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden;background:#111;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#f5f5f5}
+button{padding:8px 12px;border:1px solid #666;border-radius:7px;background:#202020;color:#f5f5f5;cursor:pointer;font:inherit;font-weight:600;transition:background .15s,border-color .15s,color .15s,transform .15s}
+button:hover:not(:disabled){border-color:#fff;background:#383838}
+button:active:not(:disabled){transform:translateY(1px)}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid #fff;outline-offset:3px}
+button.on{border-color:#fff;background:#f5f5f5;color:#111}
+button:disabled{opacity:.4;cursor:not-allowed}
+#c{display:block;width:100%;height:100%;touch-action:none}
+#hud,#board{position:fixed;border:1px solid rgba(255,255,255,.2);border-radius:12px;background:rgba(12,12,12,.9);box-shadow:0 12px 36px rgba(0,0,0,.35);backdrop-filter:blur(12px);font-size:14px}
+#hud{left:16px;bottom:16px;max-width:min(560px,calc(100vw - 32px));padding:14px}
+#board{right:16px;top:16px;min-width:160px;padding:12px 16px;line-height:1.7}
+.hud-top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+#stats{line-height:1.6}
+#bMenu{flex:none;padding:5px 10px}
+#hud label{display:flex;align-items:center;gap:8px;margin-top:10px}
+#pct{flex:1;min-width:70px;accent-color:#fff}
+#btns{display:flex;flex-wrap:wrap;gap:7px;margin:11px 0}
+#btns button{font-size:12px}
+#help{color:#c6c6c6;font-size:12px;line-height:1.5}
+#menu{position:fixed;inset:0;z-index:5;display:grid;place-items:stretch;padding:0;background:rgba(0,0,0,.72)}
+#menu[hidden]{display:none}
+#menuCard{width:100%;height:100%;max-height:100%;overflow:auto;padding:clamp(24px,5vw,64px);background:radial-gradient(ellipse at 50% 0%,#252525 0%,#111 48%,#080808 100%);display:flex;flex-direction:column;justify-content:center}
+#menuCard>*{width:min(100%,1100px);margin-left:auto;margin-right:auto}
+.eyebrow{margin:0;color:#c5c5c5;font-size:11px;font-weight:700;letter-spacing:.2em;text-transform:uppercase}
+#menu h1{margin-top:8px;margin-bottom:8px;font-size:clamp(42px,8vw,76px);line-height:1.05;letter-spacing:-.055em}
+#menuCard>p:not(.eyebrow):not(.menu-tip){color:#d0d0d0;line-height:1.6}
+.how-to{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-top:24px;margin-bottom:24px;color:#e5e5e5;font-size:15px}
+.how-to span{padding:14px;border:1px solid #373737;border-radius:9px;background:rgba(255,255,255,.035);line-height:1.5}
+.how-to b{display:inline-grid;place-items:center;width:30px;height:30px;margin-right:8px;border:1px solid #777;border-radius:7px;color:#fff;font-size:12px}
+.options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 24px;margin-bottom:24px}
+.options label{display:flex;align-items:center;justify-content:space-between;gap:12px;min-width:0;color:#e4e4e4}
+.options input,.options select{width:min(52%,280px);min-width:110px;padding:10px 12px;border:1px solid #555;border-radius:7px;background:#171717;color:#f5f5f5;font:inherit}
+.options input:focus,.options select:focus{border-color:#fff}
+.menu-actions{display:flex;gap:10px;flex-wrap:wrap}
+.menu-actions button{padding:12px 20px}
+#menuStart,#menuNew{border-color:#fff;background:#f5f5f5;color:#111}
+#menuStart:hover:not(:disabled),#menuNew:hover:not(:disabled){background:#d8d8d8}
+.menu-tip{margin:18px 0 0;color:#999;font-size:12px}
+#toast{position:fixed;z-index:4;left:50%;top:18px;transform:translate(-50%,-12px);padding:10px 16px;border:1px solid #555;border-radius:8px;background:#111;box-shadow:0 8px 28px rgba(0,0,0,.4);opacity:0;pointer-events:none;transition:opacity .18s,transform .18s}
+#toast.show{opacity:1;transform:translate(-50%,0)}
+#offer{position:fixed;inset:0;z-index:9;display:grid;place-items:center;padding:20px;background:rgba(0,0,0,.78);backdrop-filter:blur(5px)}
+#offer[hidden]{display:none}
+#offerCard{width:min(380px,100%);padding:24px;border:1px solid #555;border-radius:12px;background:#151515;box-shadow:0 24px 70px rgba(0,0,0,.6)}
+#offerCard h2{margin:0}
+#offerText{color:#ccc;line-height:1.5}
+.offer-actions{display:flex;gap:8px}
+#offerAccept{border-color:#fff;background:#f5f5f5;color:#111}
+#offerAccept:hover:not(:disabled){background:#d8d8d8}
+#msg{position:fixed;z-index:6;top:40%;left:50%;transform:translate(-50%,-50%);padding:30px 40px;border:1px solid #555;border-radius:12px;background:#111;box-shadow:0 24px 70px rgba(0,0,0,.6);text-align:center;font-size:28px}
+#msg button{margin-top:12px}
+@media(max-width:700px){#menuCard{justify-content:flex-start;padding:24px 18px}.how-to{grid-template-columns:1fr;gap:8px;margin:16px auto}.how-to span{padding:9px}.options{grid-template-columns:1fr;gap:10px}.options label{font-size:14px}.options input,.options select{width:48%;min-width:100px;padding:8px}#hud{left:8px;bottom:8px;max-width:calc(100vw - 16px);padding:10px}#board{right:8px;top:8px;min-width:132px;padding:8px 10px;font-size:12px}#btns{gap:5px}#btns button{padding:6px 8px;font-size:11px}#help{max-width:calc(100vw - 40px)}}
+#ctxMenu{position:fixed;z-index:7;display:flex;flex-direction:column;gap:5px;min-width:170px;padding:10px;border:1px solid #555;border-radius:9px;background:#151515;box-shadow:0 12px 36px rgba(0,0,0,.5)}
+#ctxMenu[hidden]{display:none}
+#ctxMenu small{margin-bottom:4px;color:#aaa}
+#shop{position:fixed;inset:0;z-index:8;display:grid;place-items:center;padding:20px;background:rgba(0,0,0,.78);backdrop-filter:blur(5px)}
+#shop[hidden]{display:none}
+#shopCard{width:min(640px,100%);max-height:90vh;overflow:auto;padding:22px;border:1px solid #555;border-radius:12px;background:#151515;box-shadow:0 24px 70px rgba(0,0,0,.6)}
+#shopCard h2{margin:0}
+#shopTabs{display:flex;gap:6px;flex-wrap:wrap;margin:12px 0}
+#shopGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px;margin-bottom:14px}
+.item{display:flex;flex-direction:column;gap:6px;align-items:stretch;padding:9px;border:1px solid #444;border-radius:8px;background:#1d1d1d;font-size:13px}
+.swatch{height:34px;display:grid;place-items:center;border:1px solid #888;border-radius:5px;background-color:#333}
+.fl{display:inline-block;width:14px;height:9px;margin-right:4px;border:1px solid #fff;vertical-align:middle}
+.options input[type=color]{height:36px;padding:3px}
+#msg small{font-size:16px}
