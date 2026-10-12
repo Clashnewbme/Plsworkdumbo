@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Plsworkdumbo – Territory Conquest</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="src/style.css"></head>
+<body>
+<canvas id="c"></canvas>
+<div id="hud">
+  <div id="stats"></div>
+  <label>Send troops: <input id="pct" type="range" min="5" max="100" value="50"><span id="pctv">50%</span></label>
+  <div id="btns">
+    <button id="bCity">City (<span id="cCity"></span>g)</button>
+    <button id="bPort">Port (<span id="cPort"></span>g)</button>
+    <button id="bCancel">Cancel attack</button>
+  </div>
+  <div id="help">Click land to attack/expand · Build mode: click your own tile · Drag to pan · Wheel to zoom</div>
+</div>
+<div id="board"></div>
+<div id="msg" hidden></div>
+<script src="src/game.js"></script>
+</body></html>
