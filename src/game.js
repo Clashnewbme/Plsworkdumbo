@@ -2,7 +2,7 @@
 // Original real-time territory conquest game. Simulation runs on a hidden
 // grid; rendering is resolution-independent and smoothed (no visible tiles).
 const W = 192, H = 120, N = W * H, BOTS = 14, TICK = 100;
-const COST = { city: 150, port: 100 };
+const COST = { city: 150, port: 100, ship: 220 };
 const rnd = Math.random;
 
 // ---------- map generation (value noise) ----------
@@ -31,7 +31,8 @@ function genMap() {
 // ---------- state ----------
 const owner = new Uint8Array(N);          // 0 = unclaimed
 const building = new Uint8Array(N);       // 0 none, 1 city, 2 port
-let players = [], attacks = [], tick = 0, over = false, mode = null;
+let players = [], attacks = [], ships = [], navalAttacks = [], tick = 0, over = false, mode = null;
+let started = false, paused = true, toastTimer;
 const HUMAN = 1;
 const nbrs = i => {
   const x = i % W, r = [];
@@ -42,7 +43,7 @@ const nbrs = i => {
 const isCoast = i => nbrs(i).some(j => !land[j]);
 
 function newGame() {
-  owner.fill(0); building.fill(0); attacks = []; tick = 0; over = false; players = [null];
+  owner.fill(0); building.fill(0); attacks = []; ships = []; navalAttacks = []; tick = 0; over = false; players = [null]; mode = null;
   const spots = [];
   for (let i = 0; i < N; i++) if (land[i]) spots.push(i);
   const hues = [];
@@ -150,11 +151,54 @@ function tryBuild(pid, type, i) {
   if (type === 2 && !isCoast(i)) return false;
   p.gold -= cost; building[i] = type; dirty = true; return true;
 }
+function tryBuildShip(pid, i) {
+  const p = players[pid];
+  if (i < 0 || owner[i] !== pid || building[i] !== 2 || p.gold < COST.ship || ships.filter(s => s.p === pid).length >= 8) return false;
+  p.gold -= COST.ship; ships.push({ p: pid, dock: i, busy: false }); dirty = true; return true;
+}
+function canReach(pid, i) { return nbrs(i).some(j => owner[j] === pid); }
+function startNavalAttack(pid, target, frac) {
+  const p = players[pid], ship = ships.find(s => s.p === pid && !s.busy);
+  if (!ship) { showToast('Build a ship at one of your ports first.'); return false; }
+  if (!land[target] || !isCoast(target)) { showToast('Ships can only land on coastal territory.'); return false; }
+  if (owner[target] === pid) return false;
+  const send = Math.floor(p.troops * frac);
+  if (send < 5) { showToast('You need at least 5 troops for an attack.'); return false; }
+  p.troops -= send; ship.busy = true;
+  const distance = Math.hypot(ship.dock % W - target % W, ((ship.dock / W) | 0) - ((target / W) | 0));
+  navalAttacks.push({ p: pid, target, troops: send, ship, progress: 0, duration: Math.max(12, Math.ceil(distance / 2)) });
+  showToast('Fleet dispatched to the coast.');
+  return true;
+}
+function stepNavalAttacks() {
+  const active = [];
+  for (const a of navalAttacks) {
+    const attacker = players[a.p];
+    if (!attacker || !attacker.alive) { a.ship.busy = false; continue; }
+    if (owner[a.target] === a.p) {
+      attacker.troops += a.troops; a.ship.busy = false; continue;
+    }
+    if (++a.progress < a.duration) { active.push(a); continue; }
+    const def = owner[a.target] ? players[owner[a.target]] : null;
+    const cost = def ? 1.5 + def.troops / Math.max(1, def.tiles) * 1.5 : 1;
+    if (a.troops >= cost) {
+      if (def) { def.troops = Math.max(0, def.troops - cost * .8); def.tiles--; }
+      owner[a.target] = a.p; attacker.tiles++; building[a.target] = 0;
+      attacker.troops += a.troops - cost; dirty = true;
+      a.ship.busy = false;
+      if (a.p === HUMAN) showToast('Naval landing secured!');
+    } else {
+      a.ship.busy = false; ships = ships.filter(s => s !== a.ship);
+      if (a.p === HUMAN) showToast('The landing failed and your ship was lost.');
+    }
+  }
+  navalAttacks = active;
+}
 
 // ---------- loop ----------
 function step() {
-  if (over) return;
-  tick++; stepAttacks();
+  if (!started || paused || over) return;
+  tick++; stepAttacks(); stepNavalAttacks();
   for (const b of players) if (b && b.bot && b.alive && ++b.think % 15 === 0) botThink(b);
   economy(); checkEnd(); updateHud();
 }
