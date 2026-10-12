@@ -210,46 +210,46 @@ function botAnswer(bot, pid, kind) {
   return false;
 }
 function diplomacy(pid, target, kind) {
-  const bot = players[target], me = players[pid];
-  if (!bot || !bot.alive || target === pid) return;
-  if (kind === 'war') {
-    setRelation(pid, target, 'neutral'); rel[rkey(pid, target)] = 'war';
-    showToast('You declared war on ' + bot.name + '.'); return;
-  }
-  function showNextOffer() {
-    if (activeOffer || !pendingOffers.length) return;
-    activeOffer = pendingOffers.shift();
-    const bot = players[activeOffer.bot];
-    if (!bot || !bot.alive || relation(HUMAN, bot.id) !== activeOffer.relation) {
-      activeOffer = null; showNextOffer(); return;
-    }
-    $('offerText').textContent = bot.name + ' has sent a ' + (activeOffer.kind === 'peace' ? 'peace offer.' : 'alliance request.');
-    $('offer').hidden = false;
-  }
-  function queueBotOffer(bot, kind) {
-    const currentRelation = relation(HUMAN, bot.id);
-    if (pendingOffers.some(o => o.bot === bot.id) || (activeOffer && activeOffer.bot === bot.id)) return false;
-    pendingOffers.push({ bot: bot.id, kind, relation: currentRelation });
-    showNextOffer();
-    return true;
-  }
-  function answerBotOffer(accept) {
-    const offer = activeOffer;
-    activeOffer = null; $('offer').hidden = true;
-    const bot = offer && players[offer.bot];
-    if (bot && bot.alive && relation(HUMAN, bot.id) === offer.relation) {
-      if (accept) {
-        setRelation(HUMAN, bot.id, offer.kind);
-        showToast(bot.name + ' is now ' + (offer.kind === 'peace' ? 'at peace with you.' : 'your ally.'));
-      } else showToast('You rejected ' + bot.name + '\'s ' + (offer.kind === 'peace' ? 'peace offer.' : 'alliance request.'));
-    } else showToast('That diplomatic offer has expired.');
-    showNextOffer();
-  }
-  if (kind === 'break') { setRelation(pid, target, 'neutral'); showToast('Treaty with ' + bot.name + ' ended.'); return; }
-  if (botAnswer(bot, pid, kind)) {
-    setRelation(pid, target, kind);
-    showToast(bot.name + ' accepted your ' + (kind === 'peace' ? 'peace treaty.' : 'alliance.'));
-  } else showToast(bot.name + ' rejected your ' + (kind === 'peace' ? 'peace offer.' : 'alliance request.'));
+ const bot = players[target], me = players[pid];
+ if (!bot || !bot.alive || target === pid) return;
+ if (kind === 'war') {
+   setRelation(pid, target, 'neutral'); rel[rkey(pid, target)] = 'war';
+   showToast('You declared war on ' + bot.name + '.'); return;
+ }
+ if (kind === 'break') { setRelation(pid, target, 'neutral'); showToast('Treaty with ' + bot.name + ' ended.'); return; }
+ if (botAnswer(bot, pid, kind)) {
+   setRelation(pid, target, kind);
+   showToast(bot.name + ' accepted your ' + (kind === 'peace' ? 'peace treaty.' : 'alliance.'));
+ } else showToast(bot.name + ' rejected your ' + (kind === 'peace' ? 'peace offer.' : 'alliance request.'));
+}
+function showNextOffer() {
+ if (activeOffer || !pendingOffers.length) return;
+ activeOffer = pendingOffers.shift();
+ const bot = players[activeOffer.bot];
+ if (!bot || !bot.alive || relation(HUMAN, bot.id) !== activeOffer.relation) {
+   activeOffer = null; showNextOffer(); return;
+ }
+ $('offerText').textContent = bot.name + ' has sent a ' + (activeOffer.kind === 'peace' ? 'peace offer.' : 'alliance request.');
+ $('offer').hidden = false;
+}
+function queueBotOffer(bot, kind) {
+ const currentRelation = relation(HUMAN, bot.id);
+ if (pendingOffers.some(o => o.bot === bot.id) || (activeOffer && activeOffer.bot === bot.id)) return false;
+ pendingOffers.push({ bot: bot.id, kind, relation: currentRelation });
+ showNextOffer();
+ return true;
+}
+function answerBotOffer(accept) {
+ const offer = activeOffer;
+ activeOffer = null; $('offer').hidden = true;
+ const bot = offer && players[offer.bot];
+ if (bot && bot.alive && relation(HUMAN, bot.id) === offer.relation) {
+   if (accept) {
+     setRelation(HUMAN, bot.id, offer.kind);
+     showToast(bot.name + ' is now ' + (offer.kind === 'peace' ? 'at peace with you.' : 'your ally.'));
+   } else showToast('You rejected ' + bot.name + '\'s ' + (offer.kind === 'peace' ? 'peace offer.' : 'alliance request.'));
+ } else showToast('That diplomatic offer has expired.');
+ showNextOffer();
 }
 
 // ---------- combat ----------
