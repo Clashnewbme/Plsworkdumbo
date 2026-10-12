@@ -4,17 +4,37 @@
 <link rel="stylesheet" href="src/style.css"></head>
 <body>
 <canvas id="c"></canvas>
+<div id="menu">
+  <section id="menuCard">
+    <p class="eyebrow">A REAL-TIME STRATEGY GAME</p>
+    <h1>Plsworkdumbo</h1>
+    <p>Grow your territory, raise an army, and take the coast with your fleet.</p>
+    <div class="how-to">
+      <span><b>01</b> Click neighboring land to expand or attack.</span>
+      <span><b>02</b> Build cities and ports on your territory.</span>
+      <span><b>03</b> Build ships at ports to strike distant shores.</span>
+    </div>
+    <div class="menu-actions">
+      <button id="menuStart">Begin conquest</button>
+      <button id="menuResume" hidden>Resume game</button>
+      <button id="menuNew">New game</button>
+    </div>
+    <p class="menu-tip">Drag to explore · Scroll to zoom · Esc to pause</p>
+  </section>
+</div>
 <div id="hud">
-  <div id="stats"></div>
+  <div class="hud-top"><div id="stats"></div><button id="bMenu" title="Pause">Ⅱ</button></div>
   <label>Send troops: <input id="pct" type="range" min="5" max="100" value="50"><span id="pctv">50%</span></label>
   <div id="btns">
     <button id="bCity">City (<span id="cCity"></span>g)</button>
     <button id="bPort">Port (<span id="cPort"></span>g)</button>
+    <button id="bShip">Ship (<span id="cShip"></span>g)</button>
     <button id="bCancel">Cancel attack</button>
   </div>
-  <div id="help">Click land to attack/expand · Build mode: click your own tile · Drag to pan · Wheel to zoom</div>
+  <div id="help">Click land to attack · Build on your territory · Build ships at ports</div>
 </div>
 <div id="board"></div>
+<div id="toast" role="status" aria-live="polite"></div>
 <div id="msg" hidden></div>
 <script src="src/game.js"></script>
 </body></html>
