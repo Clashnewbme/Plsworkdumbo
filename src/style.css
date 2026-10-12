@@ -203,7 +203,7 @@ button:disabled {
   align-items: center;
   gap: 6px;
   padding: 4px 12px;
-  border-radius: 20px;
+  border-radius: 2px;
   font-size: 13px;
   background: #353c2d;
   border: 1px solid #646750;
