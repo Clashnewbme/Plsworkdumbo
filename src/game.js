@@ -54,7 +54,7 @@ const isCoast = i => nbrs(i).some(j => !land[j]);
 let botOffset = 0;
 function newGame() {
   botOffset = (rnd() * COUNTRIES.length) | 0;
-  owner.fill(0); building.fill(0); attacks = []; ships = []; navalAttacks = []; tick = 0; over = false; players = [null]; mode = null;
+  owner.fill(0); building.fill(0); attacks = []; ships = []; navalAttacks = []; tick = 0; over = false; players = [null]; mode = null; rel = {};
   const spots = [];
   for (let i = 0; i < N; i++) if (land[i]) spots.push(i);
   const hues = [];
@@ -98,10 +98,41 @@ function economy() {
   }
 }
 
+// ---------- diplomacy ----------
+let rel = {};
+const rkey = (a, b) => a < b ? a + ',' + b : b + ',' + a;
+function relation(a, b) { return rel[rkey(a, b)] || 'neutral'; }
+function setRelation(a, b, v) { if (v === 'neutral') delete rel[rkey(a, b)]; else rel[rkey(a, b)] = v; }
+function friendly(a, b) { const r = relation(a, b); return r === 'peace' || r === 'alliance'; }
+function borders(a, b) {
+  for (let i = 0; i < N; i++) if (owner[i] === a) for (const j of nbrs(i)) if (land[j] && owner[j] === b) return true;
+  return false;
+}
+function botAnswer(bot, pid, kind) {
+  const me = players[pid], str = bot.troops + bot.tiles * 4, mine = me.troops + me.tiles * 4;
+  if (kind === 'peace') return str < mine * 1.5 || rnd() < .3;
+  if (kind === 'alliance') return relation(bot.id, pid) === 'peace' && rnd() < .6;
+  return false;
+}
+function diplomacy(pid, target, kind) {
+  const bot = players[target], me = players[pid];
+  if (!bot || !bot.alive || target === pid) return;
+  if (kind === 'war') {
+    setRelation(pid, target, 'neutral'); rel[rkey(pid, target)] = 'war';
+    showToast('You declared war on ' + bot.name + '.'); return;
+  }
+  if (kind === 'break') { setRelation(pid, target, 'neutral'); showToast('Treaty with ' + bot.name + ' ended.'); return; }
+  if (botAnswer(bot, pid, kind)) {
+    setRelation(pid, target, kind);
+    showToast(bot.name + ' accepted your ' + (kind === 'peace' ? 'peace treaty.' : 'alliance.'));
+  } else showToast(bot.name + ' rejected your ' + (kind === 'peace' ? 'peace offer.' : 'alliance request.'));
+}
+
 // ---------- combat ----------
 function startAttack(pid, target, frac) {
   const p = players[pid];
   if (!p.alive || target === pid) return false;
+  if (target && friendly(pid, target)) { if (pid === HUMAN) showToast('You have a treaty with ' + players[target].name + '. Break it first.'); return false; }
   const send = Math.floor(p.troops * frac);
   if (send < 5) return false;
   p.troops -= send;
@@ -120,6 +151,7 @@ function stepAttacks() {
     for (const j of nbrs(i)) if (land[j]) for (const a of list) if (owner[j] === a.t && j !== i) cand.get(a).push(j);
   }
   for (const a of attacks.slice()) {
+    if (a.t && friendly(a.p, a.t)) { players[a.p].troops += a.troops; a.troops = 0; continue; }
     const att = players[a.p], def = a.t ? players[a.t] : null, list = cand.get(a);
     let n = Math.min(list.length, Math.max(2, Math.ceil(Math.sqrt(att.tiles) * 1.2)));
     if (!list.length || (def && !def.alive)) { att.troops += a.troops; a.troops = 0; }
@@ -149,6 +181,8 @@ function botThink(b) {
   }
   let best = 0, bestT = 1e9;
   for (const t of targets.keys()) { const d = players[t].troops / Math.max(1, players[t].tiles); if (d < bestT) { bestT = d; best = t; } }
+  for (const t of [...targets.keys()]) if (friendly(b.id, t)) targets.delete(t);
+  best = 0; bestT = 1e9; for (const t of targets.keys()) { const d = players[t].troops / Math.max(1, players[t].tiles); if (d < bestT) { bestT = d; best = t; } }
   if (free && (rnd() < .6 || !best)) startAttack(b.id, 0, .3);
   else if (best && b.troops > players[best].troops * .5) startAttack(b.id, best, .5);
 }
@@ -173,6 +207,7 @@ function startNavalAttack(pid, target, frac) {
   if (!ship) { showToast('Build a ship at one of your ports first.'); return false; }
   if (!land[target] || !isCoast(target)) { showToast('Ships can only land on coastal territory.'); return false; }
   if (owner[target] === pid) return false;
+  if (owner[target] && friendly(pid, owner[target])) { showToast('You have a treaty with that nation.'); return false; }
   const send = Math.floor(p.troops * frac);
   if (send < 5) { showToast('You need at least 5 troops for an attack.'); return false; }
   p.troops -= send; ship.busy = true;
@@ -276,6 +311,13 @@ function render() {
     if (building[i] === 1) ctx.rect(x - 1, y - 1, 2, 2); else { ctx.moveTo(x, y - 1.2); ctx.lineTo(x + 1.1, y + 1); ctx.lineTo(x - 1.1, y + 1); ctx.closePath(); }
     ctx.fill(); ctx.stroke();
   }
+  if (mode && hover && !paused && !over && hover.x >= 0 && hover.y >= 0 && hover.x < W && hover.y < H) {
+    const hi = hover.y * W + hover.x, ok = buildCheck(mode, hi), x = hover.x + .5, y = hover.y + .5;
+    ctx.globalAlpha = .75; ctx.fillStyle = ok ? '#2ecc40' : '#ff3b30'; ctx.strokeStyle = '#fff'; ctx.lineWidth = .2;
+    ctx.beginPath();
+    if (mode === 'city') ctx.rect(x - 1, y - 1, 2, 2); else if (mode === 'port') { ctx.moveTo(x, y - 1.2); ctx.lineTo(x + 1.1, y + 1); ctx.lineTo(x - 1.1, y + 1); ctx.closePath(); } else ctx.arc(x, y, 1.2, 0, 7);
+    ctx.fill(); ctx.stroke(); ctx.globalAlpha = 1;
+  }
   for (const ship of ships) {
     const attack = navalAttacks.find(a => a.ship === ship);
     const sea = nbrs(ship.dock).find(j => !land[j]);
@@ -314,9 +356,35 @@ function showToast(message) {
   clearTimeout(toastTimer); toastTimer = setTimeout(() => toast.classList.remove('show'), 2200);
 }
 function toTile(e) { return { x: Math.floor((e.offsetX - cam.x) / cam.z), y: Math.floor((e.offsetY - cam.y) / cam.z) }; }
-let drag = null;
-cv.onmousedown = e => { drag = { x: e.clientX, y: e.clientY, cx: cam.x, cy: cam.y, moved: false }; };
-cv.onmousemove = e => { if (!drag) return; const dx = e.clientX - drag.x, dy = e.clientY - drag.y; if (Math.abs(dx) + Math.abs(dy) > 4) drag.moved = true; if (drag.moved) { cam.x = drag.cx + dx; cam.y = drag.cy + dy; } };
+let drag = null, hover = null;
+cv.onmouseleave = () => { hover = null; };
+function buildCheck(type, i) {
+  if (i < 0 || owner[i] !== HUMAN || !land[i]) return false;
+  if (type === 'ship') return building[i] === 2 && players[HUMAN].gold >= COST.ship && ships.filter(s => s.p === HUMAN).length < 8;
+  if (building[i]) return false;
+  if (type === 'port' && !isCoast(i)) return false;
+  return players[HUMAN].gold >= COST[type];
+}
+const ctxMenu = document.createElement('div'); ctxMenu.id = 'ctxMenu'; ctxMenu.hidden = true; document.body.appendChild(ctxMenu);
+function hideCtx() { ctxMenu.hidden = true; }
+cv.oncontextmenu = e => {
+  e.preventDefault(); drag = null;
+  const t = toTile(e); if (over || t.x < 0 || t.y < 0 || t.x >= W || t.y >= H) return hideCtx();
+  const o = owner[t.y * W + t.x];
+  if (!o || o === HUMAN || !land[t.y * W + t.x]) return hideCtx();
+  const p = players[o], r = relation(HUMAN, o);
+  const label = { neutral: 'Neutral', war: 'At war', peace: 'At peace', alliance: 'Allied' }[r];
+  ctxMenu.innerHTML = '<b>' + p.name + '</b><small>' + label + ' · Troops ' + Math.floor(p.troops) + ' · Land ' + p.tiles + '</small>';
+  const add = (text, kind) => { const b = document.createElement('button'); b.textContent = text; b.onclick = () => { hideCtx(); diplomacy(HUMAN, o, kind); }; ctxMenu.appendChild(b); };
+  if (r !== 'war') add('Declare war', 'war');
+  if (r === 'neutral' || r === 'war') add('Propose peace', 'peace');
+  if (r === 'peace') add('Request alliance', 'alliance');
+  if (r === 'peace' || r === 'alliance') add('Break treaty', 'break');
+  ctxMenu.hidden = false;
+  ctxMenu.style.left = Math.min(e.clientX, innerWidth - 190) + 'px'; ctxMenu.style.top = Math.min(e.clientY, innerHeight - 200) + 'px';
+};
+cv.onmousedown = e => { hideCtx(); if (e.button !== 0) return; drag = { x: e.clientX, y: e.clientY, cx: cam.x, cy: cam.y, moved: false }; };
+cv.onmousemove = e => { hover = toTile(e); if (!drag) return; const dx = e.clientX - drag.x, dy = e.clientY - drag.y; if (Math.abs(dx) + Math.abs(dy) > 4) drag.moved = true; if (drag.moved) { cam.x = drag.cx + dx; cam.y = drag.cy + dy; } };
 cv.onmouseup = e => {
   const d = drag; drag = null; if (!d || d.moved || over) return;
   const t = toTile(e); if (t.x < 0 || t.y < 0 || t.x >= W || t.y >= H) return;
@@ -339,9 +407,12 @@ cv.onmouseup = e => {
   }
   if (!land[i]) return;
   if (owner[i] === HUMAN) return;
-  if (canReach(HUMAN, i)) startAttack(HUMAN, owner[i], $('pct').value / 100);
-  else if (isCoast(i)) startNavalAttack(HUMAN, i, $('pct').value / 100);
-  else showToast('That territory is out of reach. Build a ship to strike the coast.');
+  const frac = $('pct').value / 100;
+  if (canReach(HUMAN, i) || borders(HUMAN, owner[i])) startAttack(HUMAN, owner[i], frac);
+  else if (isCoast(i) && ships.some(s => s.p === HUMAN && !s.busy)) startNavalAttack(HUMAN, i, frac);
+  else if (!owner[i] && !players[HUMAN].tiles) return;
+  else if (isCoast(i)) startNavalAttack(HUMAN, i, frac);
+  else showToast('No border or port route to that land yet.');
 };
 cv.onwheel = e => { e.preventDefault(); const k = e.deltaY < 0 ? 1.15 : 1 / 1.15, nz = Math.max(2, Math.min(40, cam.z * k));
   cam.x = e.offsetX - (e.offsetX - cam.x) * nz / cam.z; cam.y = e.offsetY - (e.offsetY - cam.y) * nz / cam.z; cam.z = nz; };
