@@ -267,7 +267,9 @@ function render() {
   }
   for (const ship of ships) {
     const attack = navalAttacks.find(a => a.ship === ship);
-    const dockX = ship.dock % W + .5, dockY = ((ship.dock / W) | 0) + .5;
+    const sea = nbrs(ship.dock).find(j => !land[j]);
+    const dockX = sea === undefined ? ship.dock % W + .5 : sea % W + .5;
+    const dockY = sea === undefined ? ((ship.dock / W) | 0) + .5 : ((sea / W) | 0) + .5;
     const x = attack ? dockX + (attack.target % W + .5 - dockX) * attack.progress / attack.duration : dockX;
     const y = attack ? dockY + (((attack.target / W) | 0) + .5 - dockY) * attack.progress / attack.duration : dockY;
     ctx.save(); ctx.translate(x, y); ctx.scale(1.2, 1.2);
