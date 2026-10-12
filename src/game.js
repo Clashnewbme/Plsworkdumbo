@@ -438,7 +438,10 @@ function drawTerrain() {
     const h = (hv(x0, y0) * (1 - tx) + hv(x0 + 1, y0) * tx) * (1 - ty) + (hv(x0, y0 + 1) * (1 - tx) + hv(x0 + 1, y0 + 1) * tx) * ty;
     let r, g, b;
     if (h > sea) { const t = Math.min(1, (h - sea) * 3); r = g = b = 235 - t * 60; if (h < sea + .015) r = g = b = 250; }
-    else { const t = Math.max(0, (h - .15) / .21); r = g = b = 10 + t * 30; }
+    else {
+      const depth = Math.max(0, Math.min(1, (sea - h) / .3));
+      r = 20 - depth * 12; g = 137 - depth * 70; b = 194 - depth * 70;
+    }
     const o = (py * W * SS + px) * 4; d[o] = r; d[o + 1] = g; d[o + 2] = b; d[o + 3] = 255;
   }
   tctx.putImageData(img, 0, 0);
@@ -478,7 +481,7 @@ function resize() { cv.width = innerWidth; cv.height = innerHeight; }
 function fit() { cam.z = Math.min(cv.width / W, cv.height / H); cam.x = (cv.width - W * cam.z) / 2; cam.y = (cv.height - H * cam.z) / 2; }
 function render() {
   if (dirty) drawOwners();
-  ctx.fillStyle = '#000'; ctx.fillRect(0, 0, cv.width, cv.height);
+  ctx.fillStyle = '#075b91'; ctx.fillRect(0, 0, cv.width, cv.height);
   ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
   ctx.save(); ctx.translate(cam.x, cam.y); ctx.scale(cam.z, cam.z);
   ctx.drawImage(terrain, 0, 0, W, H);
@@ -638,9 +641,27 @@ $('diffSelect').innerHTML = Object.keys(DIFFS).map(k => '<option value="' + k + 
 $('diffSelect').value = difficulty;
 $('diffSelect').onchange = () => { difficulty = $('diffSelect').value; };
 $('botSelect').value = BOTS;
-const setting = (id, key, redo) => { $(id).value = SETTINGS[key]; $(id).onchange = () => { SETTINGS[key] = +$(id).value; if (!started) { if (redo) genMap(); newGame(); drawTerrain(); updateHud(); } }; };
-setting('startSelect', 'start'); setting('winSelect', 'winPct'); setting('troopSelect', 'troops'); setting('goldSelect', 'gold'); setting('seaSelect', 'sea', true);
-$('botSelect').onchange = () => { BOTS = +$('botSelect').value; if (!started) { newGame(); updateHud(); } };
+const setting = (id, key, min, max, redo, display = value => value, parse = value => value) => {
+  const input = $(id), sync = () => { input.value = display(SETTINGS[key]); };
+  sync();
+  input.onchange = () => {
+    const entered = Number(input.value);
+    SETTINGS[key] = parse(Number.isFinite(entered) ? Math.max(min, Math.min(max, entered)) : display(SETTINGS[key]));
+    sync();
+    if (!started) { if (redo) genMap(); newGame(); drawTerrain(); updateHud(); }
+  };
+};
+setting('startSelect', 'start', 1, 3, false, Math.round, Math.round);
+setting('winSelect', 'winPct', 1, 99, false, Math.round, Math.round);
+setting('troopSelect', 'troops', 0, 1000000, false, Math.floor, Math.floor);
+setting('goldSelect', 'gold', 0, 1000000000, false, Math.floor, Math.floor);
+setting('seaSelect', 'sea', -0.2, 0.2, true, value => Math.round(-value * 100), value => -Math.round(value) / 100);
+$('botSelect').onchange = () => {
+  const entered = Number($('botSelect').value);
+  BOTS = Number.isFinite(entered) ? Math.max(1, Math.min(40, Math.floor(entered))) : BOTS;
+  $('botSelect').value = BOTS;
+  if (!started) { newGame(); updateHud(); }
+};
 $('colorInput').value = save.color;
 function applyLook() {
   save.color = $('colorInput').value; persist();
@@ -678,7 +699,10 @@ function rgbHex(c) { return c.length === 4 ? '#' + c[1] + c[1] + c[2] + c[2] + c
 $('shopOpen').onclick = () => { $('shop').hidden = false; renderShop(); };
 $('shopClose').onclick = () => { $('shop').hidden = true; };
 function showMenu() {
-  $('mapSelect').value = mapKind; $('diffSelect').value = difficulty; $('botSelect').value = BOTS; for (const [id, k] of [['startSelect', 'start'], ['winSelect', 'winPct'], ['troopSelect', 'troops'], ['goldSelect', 'gold'], ['seaSelect', 'sea']]) $(id).value = SETTINGS[k]; updateCoins();
+  $('mapSelect').value = mapKind; $('diffSelect').value = difficulty; $('botSelect').value = BOTS;
+  $('startSelect').value = SETTINGS.start; $('winSelect').value = SETTINGS.winPct;
+  $('troopSelect').value = SETTINGS.troops; $('goldSelect').value = SETTINGS.gold;
+  $('seaSelect').value = Math.round(-SETTINGS.sea * 100); updateCoins();
   paused = true; $('menu').hidden = false; $('menuStart').hidden = started; $('menuResume').hidden = !started;
 }
 function beginGame(reset) {

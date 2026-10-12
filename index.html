@@ -18,12 +18,12 @@
       <label>Country name <input id="nameInput" maxlength="16" autocomplete="off"></label>
       <label>Map <select id="mapSelect"></select></label>
       <label>Difficulty <select id="diffSelect"></select></label>
-      <label>Opponents <select id="botSelect"><option>2</option><option>4</option><option>8</option><option selected>14</option><option>20</option><option>28</option><option>40</option></select></label>
-      <label>Land amount <select id="seaSelect"><option value="0.06">Less land</option><option value="0" selected>Normal</option><option value="-0.06">More land</option></select></label>
-      <label>Starting size <select id="startSelect"><option value="1">Small</option><option value="2" selected>Medium</option><option value="3">Large</option></select></label>
-      <label>Starting troops <select id="troopSelect"><option>50</option><option selected>100</option><option>250</option><option>500</option></select></label>
-      <label>Starting gold <select id="goldSelect"><option>0</option><option selected>100</option><option>300</option><option>1000</option></select></label>
-      <label>Land needed to win <select id="winSelect"><option value="40">40%</option><option value="50">50%</option><option value="60" selected>60%</option><option value="70">70%</option><option value="80">80%</option></select></label>
+      <label>Opponents <input id="botSelect" type="number" min="1" max="40" step="1" value="14"></label>
+      <label>Land adjustment (%) <input id="seaSelect" type="number" min="-20" max="20" step="1" value="0"></label>
+      <label>Starting size <input id="startSelect" type="number" min="1" max="3" step="1" value="2"></label>
+      <label>Starting troops <input id="troopSelect" type="number" min="0" max="1000000" step="1" value="100"></label>
+      <label>Starting gold <input id="goldSelect" type="number" min="0" max="1000000000" step="1" value="100"></label>
+      <label>Land needed to win (%) <input id="winSelect" type="number" min="1" max="99" step="1" value="60"></label>
       <label>Territory colour <input id="colorInput" type="color" value="#2a8cff"></label>
     </div>
     <div class="menu-actions">
