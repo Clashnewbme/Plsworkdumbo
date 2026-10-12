@@ -7,6 +7,9 @@ const COST = { city: 150, port: 100, ship: 220, defense: 120 };
 const BTYPE = { city: 1, port: 2, defense: 3 };
 const DIFFS = { easy: { name: 'Easy', think: 24, grow: .85 }, normal: { name: 'Normal', think: 15, grow: 1 }, hard: { name: 'Hard', think: 9, grow: 1.2 }, brutal: { name: 'Brutal', think: 6, grow: 1.4 } };
 let difficulty = 'normal';
+// player-tweakable match settings (menu)
+const SETTINGS = { start: 2, winPct: 60, troops: 100, gold: 100, sea: 0 };
+
 const rnd = Math.random;
 
 // ---------- map generation (value noise) ----------
@@ -26,11 +29,11 @@ const land = new Uint8Array(N), height = new Float32Array(N);
 const MAPS = {
   continents: { name: 'Continents', a: .5, b: 1, fall: .5, sea: .36 },
   islands: { name: 'Islands', a: 1.4, b: 2.4, fall: .35, sea: .45 },
-  archipelago: { name: 'Archipelago', a: 2.2, b: 3.6, fall: .3, sea: .5 },
+  archipelago: { name: 'Archipelago', a: 2.2, b: 3.6, fall: .3, sea: .45 },
   pangaea: { name: 'Pangaea', a: .4, b: .8, fall: .9, sea: .3 },
   lakes: { name: 'Great Lakes', a: 3, b: 5, fall: .15, sea: .42 },
   highlands: { name: 'Highlands', a: .8, b: 1.6, fall: .6, sea: .4 },
-  scattered: { name: 'Scattered Isles', a: 3, b: 6, fall: .45, sea: .55 }
+  scattered: { name: 'Scattered Isles', a: 3, b: 6, fall: .45, sea: .47 }
 };
 // ---------- flags (stripes: s, direction d, optional circle c, optional cross x) ----------
 const FLAGS = {
@@ -90,12 +93,34 @@ const eqItem = cat => itemOf(cat, save.eq[cat]);
 const hexRgb = h => [1, 3, 5].map(i => parseInt(h.substr(i, 2), 16));
 let mapKind = 'continents', sea = .36;
 function genMap(kind) {
-  const m = MAPS[kind || mapKind] || MAPS.continents; sea = m.sea; landCount = 0;
-  const n1 = makeNoise(), n2 = makeNoise();
+  const m = MAPS[kind || mapKind] || MAPS.continents; sea = m.sea + SETTINGS.sea; landCount = 0;
+  const n1 = makeNoise(), n2 = makeNoise(), n3 = makeNoise(), wx = makeNoise(), wy = makeNoise();
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    // warp the sample point a little so coastlines are ragged instead of blobby
+    const px = x + (wx(x, y, 1.5) - .5) * 14, py = y + (wy(x, y, 1.5) - .5) * 14;
     const dx = x / W - .5, dy = y / H - .5;
-    const h = n1(x, y, m.a) * .6 + n2(x, y, m.b) * .4 - Math.hypot(dx, dy) * m.fall;
+    const h = n1(px, py, m.a) * .5 + n2(px, py, m.b) * .3 + n3(px, py, m.b * 2.2) * .2 - Math.hypot(dx * 1.1, dy) * m.fall;
     height[y * W + x] = h; land[y * W + x] = h > sea ? 1 : 0;
+  }
+  tidyCoast();
+}
+// two cellular passes: fill pin-holes, drop single-tile specks, then drop
+// islands too small to be worth fighting over
+function tidyCoast() {
+  for (let pass = 0; pass < 2; pass++) {
+    const next = land.slice();
+    for (let i = 0; i < N; i++) {
+      const n = nbrs(i); let l = 0; for (const j of n) l += land[j];
+      if (land[i] && l <= 1) next[i] = 0; else if (!land[i] && l >= 3) next[i] = 1;
+    }
+    land.set(next);
+  }
+  const seen = new Uint8Array(N);
+  for (let i = 0; i < N; i++) {
+    if (!land[i] || seen[i]) continue;
+    const comp = [i]; seen[i] = 1;
+    for (let k = 0; k < comp.length; k++) for (const j of nbrs(comp[k])) if (land[j] && !seen[j]) { seen[j] = 1; comp.push(j); }
+    if (comp.length < 25) for (const j of comp) land[j] = 0;
   }
 }
 
@@ -115,22 +140,26 @@ const isCoast = i => nbrs(i).some(j => !land[j]);
 
 let botOffset = 0;
 function newGame() {
-  BOTS = Math.min(BOTS, 28);
+  BOTS = Math.max(1, Math.min(BOTS, 40));
+  const R = SETTINGS.start;
   botOffset = (rnd() * COUNTRIES.length) | 0;
   owner.fill(0); building.fill(0); attacks = []; ships = []; navalAttacks = []; tick = 0; over = false; players = [null]; mode = null; rel = {};
   const spots = [];
-  for (let i = 0; i < N; i++) if (land[i]) spots.push(i);
+  // only spawn on solid ground, not on slivers of coast
+  for (let i = 0; i < N; i++) if (land[i] && nbrs(i).every(j => land[j])) spots.push(i);
+  if (!spots.length) for (let i = 0; i < N; i++) if (land[i]) spots.push(i);
+  const gap = Math.max(8, Math.min(18, Math.sqrt(spots.length / (BOTS + 1)) * 1.1));
   const hues = [];
   for (let p = 1; p <= BOTS + 1; p++) {
     let s, tries = 0;
     do { s = spots[(rnd() * spots.length) | 0]; tries++; }
-    while (tries < 400 && players.some(q => q && Math.hypot(q.sx - s % W, q.sy - ((s / W) | 0)) < 18));
+    while (tries < 400 && players.some(q => q && Math.hypot(q.sx - s % W, q.sy - ((s / W) | 0)) < gap));
     const hue = (p * 137) % 360, cn = COUNTRIES[(p - 2 + botOffset) % COUNTRIES.length];
     const pl = { id: p, name: p === 1 ? playerName : cn, bot: p !== 1, sx: s % W, sy: (s / W) | 0,
-      troops: 100, gold: 100, tiles: 0, alive: true, color: p === 1 ? hexRgb(save.color) : hsl(hue, 65, 52), think: (rnd() * 20) | 0,
+      troops: SETTINGS.troops, gold: SETTINGS.gold, tiles: 0, alive: true, color: p === 1 ? hexRgb(save.color) : hsl(hue, 65, 52), think: (rnd() * 20) | 0,
       flag: p === 1 ? eqItem('flag').flag || null : FLAGS[cn] };
     players.push(pl);
-    for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) {
+    for (let dy = -R; dy <= R; dy++) for (let dx = -R; dx <= R; dx++) {
       const x = pl.sx + dx, y = pl.sy + dy, j = y * W + x;
       if (x >= 0 && y >= 0 && x < W && y < H && land[j] && !owner[j]) { owner[j] = p; pl.tiles++; }
     }
@@ -156,7 +185,7 @@ function economy() {
     p.tiles = tiles[p.id]; p.cities = cities[p.id]; p.ports = ports[p.id]; p.posts = posts[p.id];
     if (!p.tiles) { if (p.alive) p.alive = false; attacks = attacks.filter(a => a.p !== p.id); continue; }
     const c = cap(p, p.cities);
-    if (p.troops < c) p.troops = Math.min(c, p.troops + (1 + p.tiles * .05 * (1 - p.troops / c) + 0.2 * p.cities) * (p.bot ? DIFFS[difficulty].grow : 1));
+    if (p.troops < c) p.troops = Math.min(c, p.troops + (1 + Math.min(p.tiles, 600) * .05 * (1 - p.troops / c) + 0.2 * p.cities) * (p.bot ? DIFFS[difficulty].grow : 1));
     else p.troops = Math.max(c, p.troops - (p.troops - c) * .02);
     p.gold += (p.tiles * .02 + p.cities * 1 + p.ports * 1.5 + .5) * (TICK / 1000) * 2;
   }
@@ -217,13 +246,15 @@ function stepAttacks() {
   for (const a of attacks.slice()) {
     if (a.t && friendly(a.p, a.t)) { players[a.p].troops += a.troops; a.troops = 0; continue; }
     const att = players[a.p], def = a.t ? players[a.t] : null, list = cand.get(a);
-    let n = Math.min(list.length, Math.max(2, Math.ceil(Math.sqrt(att.tiles) * 1.2)));
+    let n = Math.min(list.length, Math.max(2, Math.ceil(Math.sqrt(att.tiles) * .8)));
     if (!list.length || (def && !def.alive)) { att.troops += a.troops; a.troops = 0; }
     const done = new Set();
     while (n-- > 0 && a.troops > 0 && list.length) {
       const k = (rnd() * list.length) | 0, j = list.splice(k, 1)[0];
       if (done.has(j) || owner[j] !== a.t) continue;
-      const cost = (def ? 1 + def.troops / Math.max(1, def.tiles) * .7 : 1) * (building[j] === 3 ? 3 : 1);
+      // big countries pay more per tile, so nobody snowballs forever
+      const sprawl = 1 + att.tiles / (count_land() / 6);
+      const cost = (def ? 1 + def.troops / Math.max(1, def.tiles) * .7 : 1) * sprawl * (building[j] === 3 ? 3 : 1);
       if (a.troops < cost) { att.troops += a.troops; a.troops = 0; break; }
       a.troops -= cost; done.add(j);
       if (def) { def.troops = Math.max(0, def.troops - cost * .8); def.tiles--; }
@@ -316,7 +347,7 @@ function checkEnd() {
   const alive = players.filter(p => p && p.alive);
   const me = players[HUMAN];
   if (!me.alive) end('Defeated');
-  else if (alive.length === 1 || me.tiles > count_land() * .7) end('Victory!');
+  else if (alive.length === 1 || me.tiles > count_land() * SETTINGS.winPct / 100) end('Victory!');
 }
 let landCount = 0; const count_land = () => landCount || (landCount = land.reduce((a, b) => a + b, 0));
 function end(t) {
@@ -540,6 +571,8 @@ $('diffSelect').innerHTML = Object.keys(DIFFS).map(k => '<option value="' + k + 
 $('diffSelect').value = difficulty;
 $('diffSelect').onchange = () => { difficulty = $('diffSelect').value; };
 $('botSelect').value = BOTS;
+const setting = (id, key, redo) => { $(id).value = SETTINGS[key]; $(id).onchange = () => { SETTINGS[key] = +$(id).value; if (!started) { if (redo) genMap(); newGame(); drawTerrain(); updateHud(); } }; };
+setting('startSelect', 'start'); setting('winSelect', 'winPct'); setting('troopSelect', 'troops'); setting('goldSelect', 'gold'); setting('seaSelect', 'sea', true);
 $('botSelect').onchange = () => { BOTS = +$('botSelect').value; if (!started) { newGame(); updateHud(); } };
 $('colorInput').value = save.color;
 function applyLook() {
@@ -578,7 +611,7 @@ function rgbHex(c) { return c.length === 4 ? '#' + c[1] + c[1] + c[2] + c[2] + c
 $('shopOpen').onclick = () => { $('shop').hidden = false; renderShop(); };
 $('shopClose').onclick = () => { $('shop').hidden = true; };
 function showMenu() {
-  $('mapSelect').value = mapKind; $('diffSelect').value = difficulty; $('botSelect').value = BOTS; updateCoins();
+  $('mapSelect').value = mapKind; $('diffSelect').value = difficulty; $('botSelect').value = BOTS; for (const [id, k] of [['startSelect', 'start'], ['winSelect', 'winPct'], ['troopSelect', 'troops'], ['goldSelect', 'gold'], ['seaSelect', 'sea']]) $(id).value = SETTINGS[k]; updateCoins();
   paused = true; $('menu').hidden = false; $('menuStart').hidden = started; $('menuResume').hidden = !started;
 }
 function beginGame(reset) {
