@@ -93,7 +93,10 @@ const eqItem = cat => itemOf(cat, save.eq[cat]);
 const hexRgb = h => [1, 3, 5].map(i => parseInt(h.substr(i, 2), 16));
 let mapKind = 'continents', sea = .36;
 function genMap(kind) {
-  const m = MAPS[kind || mapKind] || MAPS.continents; sea = m.sea + SETTINGS.sea; landCount = 0;
+  const requested = kind || mapKind;
+  const kinds = Object.keys(MAPS);
+  const chosen = requested === 'random' ? kinds[(rnd() * kinds.length) | 0] : requested;
+  const m = MAPS[chosen] || MAPS.continents; sea = m.sea + SETTINGS.sea; landCount = 0;
   const n1 = makeNoise(), n2 = makeNoise(), n3 = makeNoise(), wx = makeNoise(), wy = makeNoise();
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
     // warp the sample point a little so coastlines are ragged instead of blobby
@@ -629,7 +632,7 @@ $('nameInput').oninput = () => {
   try { localStorage.setItem('pdName', playerName); } catch (e) { /* ignore */ }
   if (players[HUMAN]) players[HUMAN].name = playerName;
 };
-$('mapSelect').innerHTML = Object.keys(MAPS).map(k => '<option value="' + k + '">' + MAPS[k].name + '</option>').join('');
+$('mapSelect').innerHTML = '<option value="random">Random</option>' + Object.keys(MAPS).map(k => '<option value="' + k + '">' + MAPS[k].name + '</option>').join('');
 $('mapSelect').onchange = () => { mapKind = $('mapSelect').value; if (!started) { genMap(); newGame(); drawTerrain(); updateHud(); } };
 $('diffSelect').innerHTML = Object.keys(DIFFS).map(k => '<option value="' + k + '">' + DIFFS[k].name + '</option>').join('');
 $('diffSelect').value = difficulty;
