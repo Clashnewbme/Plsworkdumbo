@@ -183,7 +183,7 @@ function stepNavalAttacks() {
     const cost = def ? 1.5 + def.troops / Math.max(1, def.tiles) * 1.5 : 1;
     if (a.troops >= cost) {
       if (def) { def.troops = Math.max(0, def.troops - cost * .8); def.tiles--; }
-      owner[a.target] = a.p; attacker.tiles++; building[a.target] = 0;
+      owner[a.target] = a.p; attacker.tiles++;
       attacker.troops += a.troops - cost; dirty = true;
       a.ship.busy = false;
       if (a.p === HUMAN) showToast('Naval landing secured!');
@@ -340,7 +340,15 @@ function setMode(m) {
   $('help').textContent = mode === 'city' ? 'City mode: click your empty land to build.' : mode === 'port' ? 'Port mode: click empty coastal land to build.' : mode === 'ship' ? 'Ship mode: click one of your ports to commission a ship.' : 'Click land to attack · Build on your territory · Build ships at ports';
 }
 $('bCity').onclick = () => setMode('city'); $('bPort').onclick = () => setMode('port'); $('bShip').onclick = () => setMode('ship');
-$('bCancel').onclick = () => { const me = players[HUMAN]; attacks = attacks.filter(a => { if (a.p === HUMAN) { me.troops += a.troops * .8; return false; } return true; }); };
+$('bCancel').onclick = () => {
+  const me = players[HUMAN];
+  attacks = attacks.filter(a => { if (a.p === HUMAN) { me.troops += a.troops * .8; return false; } return true; });
+  navalAttacks = navalAttacks.filter(a => {
+    if (a.p !== HUMAN) return true;
+    me.troops += a.troops * .8; a.ship.busy = false; return false;
+  });
+  showToast('Orders cancelled. Most committed troops returned.');
+};
 $('pct').oninput = () => $('pctv').textContent = $('pct').value + '%';
 $('cCity').textContent = COST.city; $('cPort').textContent = COST.port; $('cShip').textContent = COST.ship;
 function showMenu() {
