@@ -417,9 +417,7 @@ let landCount = 0; const count_land = () => landCount || (landCount = land.reduc
 function end(t) {
   over = true;
   pendingOffers = []; activeOffer = null; $('offer').hidden = true;
-  const me = players[HUMAN], earned = Math.floor(me.tiles / 8) + (t === 'Victory!' ? 100 : 0) + 10;
-  save.coins += earned; persist(); updateCoins();
-  t += '<br><small>+' + earned + ' coins</small>'; const m = document.getElementById('msg'); m.hidden = false; m.innerHTML = t + '<br><button onclick="location.reload()">Play again</button>'; }
+  const m = document.getElementById('msg'); m.hidden = false; m.innerHTML = t + '<br><button onclick="location.reload()">Play again</button>'; }
 
 // ---------- rendering ----------
 let dirty = true, cam = { x: 0, y: 0, z: 1 };
@@ -668,7 +666,7 @@ function applyLook() {
   if (players[HUMAN]) { players[HUMAN].color = hexRgb(save.color); players[HUMAN].flag = eqItem('flag').flag || null; dirty = true; }
 }
 $('colorInput').oninput = applyLook;
-function updateCoins() { $('coins').textContent = save.coins; $('shopCoins').textContent = save.coins; }
+function updateCoins() { $('coins').textContent = '∞'; $('shopCoins').textContent = '∞'; }
 let shopTab = 'flag';
 function renderShop() {
   $('shopTabs').innerHTML = ''; $('shopGrid').innerHTML = ''; updateCoins();
@@ -685,9 +683,9 @@ function renderShop() {
     else sw.textContent = it.id === 'none' ? '—' : it.name[0];
     const nm = document.createElement('span'); nm.textContent = it.name;
     const btn = document.createElement('button'), own = owns(shopTab, it.id), eq = save.eq[shopTab] === it.id;
-    btn.textContent = eq ? 'Equipped' : own ? 'Equip' : 'Buy ' + it.price; btn.disabled = eq || (!own && save.coins < it.price);
+    btn.textContent = eq ? 'Equipped' : own ? 'Equip' : 'Get it'; btn.disabled = eq;
     btn.onclick = () => {
-      if (!own) { save.coins -= it.price; save.owned[shopTab + ':' + it.id] = 1; }
+      if (!own) save.owned[shopTab + ':' + it.id] = 1;
       save.eq[shopTab] = it.id;
       if (shopTab === 'flag' && it.flag) { save.color = '#' + hexRgb(rgbHex(flagMain(it.flag))).map(v => v.toString(16).padStart(2, '0')).join(''); $('colorInput').value = save.color; }
       persist(); applyLook(); if (shopTab === 'pattern') dirty = true; renderShop();
