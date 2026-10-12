@@ -41,3 +41,15 @@ button:disabled{opacity:.4;cursor:not-allowed}
 #ctxMenu{position:fixed;z-index:7;display:flex;flex-direction:column;gap:4px;min-width:170px;padding:10px;background:#000;border:1px solid #fff}
 #ctxMenu[hidden]{display:none}
 #ctxMenu small{opacity:.7;margin-bottom:4px}
+
+#shop{position:fixed;inset:0;z-index:8;display:grid;place-items:center;padding:20px;background:rgba(0,0,0,.75)}
+#shop[hidden]{display:none}
+#shopCard{width:min(640px,100%);max-height:90vh;overflow:auto;padding:22px;border:2px solid #fff;background:#000}
+#shopCard h2{margin:0}
+#shopTabs{display:flex;gap:6px;flex-wrap:wrap;margin:12px 0}
+#shopGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px;margin-bottom:14px}
+.item{display:flex;flex-direction:column;gap:6px;align-items:stretch;padding:8px;border:1px solid #fff;font-size:13px}
+.swatch{height:34px;display:grid;place-items:center;border:2px solid #fff;background-color:#333}
+.fl{display:inline-block;width:14px;height:9px;margin-right:4px;border:1px solid #fff;vertical-align:middle}
+.options input[type=color]{height:32px;padding:2px}
+#msg small{font-size:16px}
