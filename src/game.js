@@ -171,52 +171,24 @@ function computeWaterComponents() {
 }
 
 // ---------- audio system ----------
-let audioCtx = null, soundEnabled = true;
-function initAudio() {
-  try {
-    if (!audioCtx) {
-      const AudioCtor = window.AudioContext || window.webkitAudioContext;
-      if (AudioCtor) audioCtx = new AudioCtor();
-    }
-    if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
-  } catch (e) { /* ignore */ }
-}
+let soundEnabled = true;
+const sfx = {
+  button: new Audio('Assets/Sounds/Button.mp3'),
+  click: new Audio('Assets/Sounds/Click.mp3'),
+  trade: new Audio('Assets/Sounds/TradeSuccess.mp3')
+};
+Object.values(sfx).forEach(sound => { sound.preload = 'auto'; });
 function playSfx(type) {
   if (!soundEnabled) return;
   try {
-    initAudio();
-    if (!audioCtx) return;
-    const t = audioCtx.currentTime;
-    if (type === 'cannon') {
-      const sz = (audioCtx.sampleRate * 0.28) | 0, buf = audioCtx.createBuffer(1, sz, audioCtx.sampleRate), d = buf.getChannelData(0);
-      for (let i = 0; i < sz; i++) d[i] = (Math.random() * 2 - 1) * Math.exp(-i / (audioCtx.sampleRate * 0.05));
-      const src = audioCtx.createBufferSource(); src.buffer = buf;
-      const flt = audioCtx.createBiquadFilter(); flt.type = 'lowpass'; flt.frequency.setValueAtTime(380, t); flt.frequency.exponentialRampToValueAtTime(70, t + 0.28);
-      const gn = audioCtx.createGain(); gn.gain.setValueAtTime(0.35, t); gn.gain.exponentialRampToValueAtTime(0.01, t + 0.28);
-      src.connect(flt); flt.connect(gn); gn.connect(audioCtx.destination); src.start(t);
-    } else if (type === 'splash') {
-      const sz = (audioCtx.sampleRate * 0.35) | 0, buf = audioCtx.createBuffer(1, sz, audioCtx.sampleRate), d = buf.getChannelData(0);
-      for (let i = 0; i < sz; i++) d[i] = (Math.random() * 2 - 1) * Math.exp(-i / (audioCtx.sampleRate * 0.1));
-      const src = audioCtx.createBufferSource(); src.buffer = buf;
-      const flt = audioCtx.createBiquadFilter(); flt.type = 'bandpass'; flt.frequency.setValueAtTime(750, t); flt.frequency.exponentialRampToValueAtTime(220, t + 0.35);
-      const gn = audioCtx.createGain(); gn.gain.setValueAtTime(0.25, t); gn.gain.exponentialRampToValueAtTime(0.01, t + 0.35);
-      src.connect(flt); flt.connect(gn); gn.connect(audioCtx.destination); src.start(t);
-    } else if (type === 'trade' || type === 'treaty') {
-      const freqs = type === 'trade' ? [523.25, 659.25, 783.99, 1046.5] : [440, 554.37, 659.25];
-      freqs.forEach((f, k) => {
-        const osc = audioCtx.createOscillator(), gn = audioCtx.createGain();
-        osc.type = 'triangle'; osc.frequency.setValueAtTime(f, t + k * 0.07);
-        gn.gain.setValueAtTime(0.12, t + k * 0.07); gn.gain.exponentialRampToValueAtTime(0.001, t + k * 0.07 + 0.22);
-        osc.connect(gn); gn.connect(audioCtx.destination); osc.start(t + k * 0.07); osc.stop(t + k * 0.07 + 0.22);
-      });
-    } else if (type === 'war') {
-      const osc = audioCtx.createOscillator(), gn = audioCtx.createGain();
-      osc.type = 'sawtooth'; osc.frequency.setValueAtTime(140, t); osc.frequency.linearRampToValueAtTime(100, t + 0.3);
-      gn.gain.setValueAtTime(0.2, t); gn.gain.exponentialRampToValueAtTime(0.01, t + 0.3);
-      osc.connect(gn); gn.connect(audioCtx.destination); osc.start(t); osc.stop(t + 0.3);
-    }
+    const sound = sfx[type === 'trade' || type === 'treaty' ? 'trade' : type === 'button' ? 'button' : 'click'].cloneNode();
+    const playback = sound.play();
+    if (playback) playback.catch(() => {});
   } catch (e) { /* ignore */ }
 }
+document.addEventListener('click', e => {
+  if (e.target.closest('button')) playSfx('button');
+});
 
 // ---------- state ----------
 const owner = new Uint8Array(N);          // 0 = unclaimed
@@ -1845,7 +1817,7 @@ cv.oncontextmenu = e => {
   ctxMenu.hidden = false;
   ctxMenu.style.left = Math.min(e.clientX, innerWidth - 190) + 'px'; ctxMenu.style.top = Math.min(e.clientY, innerHeight - 200) + 'px';
 };
-cv.onmousedown = e => { initAudio(); hideCtx(); if (e.button !== 0) return; drag = { x: e.clientX, y: e.clientY, cx: cam.x, cy: cam.y, moved: false }; };
+cv.onmousedown = e => { hideCtx(); if (e.button !== 0) return; drag = { x: e.clientX, y: e.clientY, cx: cam.x, cy: cam.y, moved: false }; };
 cv.onmousemove = e => { hover = toTile(e); if (!drag) return; const dx = e.clientX - drag.x, dy = e.clientY - drag.y; if (Math.abs(dx) + Math.abs(dy) > 4) drag.moved = true; if (drag.moved) { cam.x = drag.cx + dx; cam.y = drag.cy + dy; } };
 cv.onmouseup = e => {
   const d = drag; drag = null; if (!d || d.moved || over) return;
@@ -2014,11 +1986,9 @@ if ($('bLeave')) $('bLeave').onclick = () => {
 };
 if ($('bSound')) {
   $('bSound').onclick = () => {
-    initAudio();
     soundEnabled = !soundEnabled;
     $('bSound').textContent = soundEnabled ? '🔊 Sound: ON' : '🔇 Sound: OFF';
     $('bSound').classList.toggle('off', !soundEnabled);
-    if (soundEnabled) playSfx('treaty');
   };
 }
 addEventListener('keydown', e => { if (e.key === 'Escape' && started && !over) { if ($('menu').hidden) showMenu(); else { paused = false; $('menu').hidden = true; updateControls(); } } });
