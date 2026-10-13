@@ -76,6 +76,7 @@ button:disabled { opacity: .55; cursor: not-allowed; box-shadow: none; }
 .ctrl-btn.active { background: #000080; color: #fff; border-color: #404040 #fff #fff #404040; box-shadow: none; }
 .ctrl-leave { background: #c0c0c0; border-color: #fff #404040 #404040 #fff; color: #800000; }
 .ctrl-leave:hover:not(:disabled) { background: #d4d4d4 !important; color: #800000 !important; border-color: #fff #404040 #404040 #fff !important; box-shadow: none !important; }
+#bSound.off { color: #808080; }
 
 #board {
   position: fixed; left: 14px; top: 14px; z-index: 10;

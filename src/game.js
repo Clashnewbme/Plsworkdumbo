@@ -61,7 +61,8 @@ const FLAGS = {
   Argentina: { d: 'h', s: ['#74acdf', '#fff', '#74acdf'], c: '#f6b40e' }, Sweden: { d: 'h', s: ['#006aa7'], x: '#fecc00' },
   Ireland: { d: 'v', s: ['#169b62', '#fff', '#ff883e'] }, Ukraine: { d: 'h', s: ['#0057b7', '#ffd700'] },
   Netherlands: { d: 'h', s: ['#ae1c28', '#fff', '#21468b'] }, Nigeria: { d: 'v', s: ['#008751', '#fff', '#008751'] },
-  Finland: { d: 'h', s: ['#fff'], x: '#003580' }, Greece: { d: 'h', s: ['#0d5eaf', '#fff', '#0d5eaf', '#fff', '#0d5eaf'] }
+  Finland: { d: 'h', s: ['#fff'], x: '#003580' }, Greece: { d: 'h', s: ['#0d5eaf', '#fff', '#0d5eaf', '#fff', '#0d5eaf'] },
+  'United Kingdom': { d: 'h', s: ['#012169', '#fff', '#c8102e'], x: '#fff' }, 'United States': { d: 'h', s: ['#b22234', '#fff', '#b22234', '#fff', '#b22234'], c: '#3c3b6e' }
 };
 const COUNTRIES = Object.keys(FLAGS);
 const flagMain = f => { const c = f.c && f.s.length === 1 && f.s[0] !== '#fff' ? f.s[0] : f.s[f.s.length > 2 ? 1 : 0]; return c === '#fff' ? (f.c || f.x || f.s[f.s.length - 1]) : c; };
@@ -94,7 +95,8 @@ const CATALOG = {
     { id: 'pirate', name: 'Pirate', price: 90, hull: '#111', sail: '#fff', line: '#fff' },
     { id: 'crimson', name: 'Crimson', price: 80, hull: '#8b0000', sail: '#ff4d4d', line: '#000' },
     { id: 'ice', name: 'Frost', price: 100, hull: '#9fd8ff', sail: '#e6f7ff', line: '#003366' },
-    { id: 'golden', name: 'Golden', price: 140, hull: '#ffd700', sail: '#fff3b0', line: '#5a4500' }] }
+    { id: 'golden', name: 'Golden', price: 140, hull: '#ffd700', sail: '#fff3b0', line: '#5a4500' },
+    { id: 'ironclad', name: 'Ironclad', price: 160, hull: '#3a3a3a', sail: '#888', line: '#111' }] }
 };
 const itemOf = (cat, id) => CATALOG[cat].items.find(i => i.id === id) || CATALOG[cat].items[0];
 let save = { coins: 100, owned: {}, eq: { flag: 'none', pattern: 'solid', bset: 'classic', ship: 'classic' }, color: '#2a8cff' };
@@ -138,6 +140,82 @@ function tidyCoast() {
     for (let k = 0; k < comp.length; k++) for (const j of nbrs(comp[k])) if (land[j] && !seen[j]) { seen[j] = 1; comp.push(j); }
     if (comp.length < 25) for (const j of comp) land[j] = 0;
   }
+  computeWaterComponents();
+}
+
+const waterComp = new Int32Array(N);
+let waterCompCount = 0;
+function computeWaterComponents() {
+  waterComp.fill(0);
+  waterCompCount = 0;
+  for (let i = 0; i < N; i++) {
+    if (land[i] || waterComp[i]) continue;
+    waterCompCount++;
+    const q = [i];
+    waterComp[i] = waterCompCount;
+    for (let head = 0; head < q.length; head++) {
+      const curr = q[head], cx = curr % W, cy = (curr / W) | 0;
+      const dxs = [1, -1, 0, 0, 1, -1, 1, -1];
+      const dys = [0, 0, 1, -1, 1, 1, -1, -1];
+      for (let d = 0; d < 8; d++) {
+        const nx = cx + dxs[d], ny = cy + dys[d];
+        if (nx < 0 || nx >= W || ny < 0 || ny >= H) continue;
+        const ni = ny * W + nx;
+        if (land[ni] || waterComp[ni]) continue;
+        if (d >= 4 && (land[cy * W + nx] || land[ny * W + cx])) continue;
+        waterComp[ni] = waterCompCount;
+        q.push(ni);
+      }
+    }
+  }
+}
+
+// ---------- audio system ----------
+let audioCtx = null, soundEnabled = true;
+function initAudio() {
+  try {
+    if (!audioCtx) {
+      const AudioCtor = window.AudioContext || window.webkitAudioContext;
+      if (AudioCtor) audioCtx = new AudioCtor();
+    }
+    if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+  } catch (e) { /* ignore */ }
+}
+function playSfx(type) {
+  if (!soundEnabled) return;
+  try {
+    initAudio();
+    if (!audioCtx) return;
+    const t = audioCtx.currentTime;
+    if (type === 'cannon') {
+      const sz = (audioCtx.sampleRate * 0.28) | 0, buf = audioCtx.createBuffer(1, sz, audioCtx.sampleRate), d = buf.getChannelData(0);
+      for (let i = 0; i < sz; i++) d[i] = (Math.random() * 2 - 1) * Math.exp(-i / (audioCtx.sampleRate * 0.05));
+      const src = audioCtx.createBufferSource(); src.buffer = buf;
+      const flt = audioCtx.createBiquadFilter(); flt.type = 'lowpass'; flt.frequency.setValueAtTime(380, t); flt.frequency.exponentialRampToValueAtTime(70, t + 0.28);
+      const gn = audioCtx.createGain(); gn.gain.setValueAtTime(0.35, t); gn.gain.exponentialRampToValueAtTime(0.01, t + 0.28);
+      src.connect(flt); flt.connect(gn); gn.connect(audioCtx.destination); src.start(t);
+    } else if (type === 'splash') {
+      const sz = (audioCtx.sampleRate * 0.35) | 0, buf = audioCtx.createBuffer(1, sz, audioCtx.sampleRate), d = buf.getChannelData(0);
+      for (let i = 0; i < sz; i++) d[i] = (Math.random() * 2 - 1) * Math.exp(-i / (audioCtx.sampleRate * 0.1));
+      const src = audioCtx.createBufferSource(); src.buffer = buf;
+      const flt = audioCtx.createBiquadFilter(); flt.type = 'bandpass'; flt.frequency.setValueAtTime(750, t); flt.frequency.exponentialRampToValueAtTime(220, t + 0.35);
+      const gn = audioCtx.createGain(); gn.gain.setValueAtTime(0.25, t); gn.gain.exponentialRampToValueAtTime(0.01, t + 0.35);
+      src.connect(flt); flt.connect(gn); gn.connect(audioCtx.destination); src.start(t);
+    } else if (type === 'trade' || type === 'treaty') {
+      const freqs = type === 'trade' ? [523.25, 659.25, 783.99, 1046.5] : [440, 554.37, 659.25];
+      freqs.forEach((f, k) => {
+        const osc = audioCtx.createOscillator(), gn = audioCtx.createGain();
+        osc.type = 'triangle'; osc.frequency.setValueAtTime(f, t + k * 0.07);
+        gn.gain.setValueAtTime(0.12, t + k * 0.07); gn.gain.exponentialRampToValueAtTime(0.001, t + k * 0.07 + 0.22);
+        osc.connect(gn); gn.connect(audioCtx.destination); osc.start(t + k * 0.07); osc.stop(t + k * 0.07 + 0.22);
+      });
+    } else if (type === 'war') {
+      const osc = audioCtx.createOscillator(), gn = audioCtx.createGain();
+      osc.type = 'sawtooth'; osc.frequency.setValueAtTime(140, t); osc.frequency.linearRampToValueAtTime(100, t + 0.3);
+      gn.gain.setValueAtTime(0.2, t); gn.gain.exponentialRampToValueAtTime(0.01, t + 0.3);
+      osc.connect(gn); gn.connect(audioCtx.destination); osc.start(t); osc.stop(t + 0.3);
+    }
+  } catch (e) { /* ignore */ }
 }
 
 // ---------- state ----------
@@ -145,6 +223,7 @@ const owner = new Uint8Array(N);          // 0 = unclaimed
 const building = new Uint8Array(N);       // 0 none, 1 city, 2 port, 3 defense post
 let flagOf = [], players = [], attacks = [], ships = [], navalAttacks = [], tick = 0, over = false, mode = null;
 let pendingOffers = [], activeOffer = null, humanOfferCooldown = 0;
+let tradeAgreements = [], sinkingEffects = [], cannonEffects = [];
 let playerName = 'You', started = false, paused = true, toastTimer;
 const HUMAN = 1;
 const nbrs = i => {
@@ -182,6 +261,9 @@ function renderDiploFeed() {
     else if (ev.type === 'peace-offer') { icon = '🕊️'; badgeClass = 'tag-request'; }
     else if (ev.type === 'peace-accept') { icon = '🕊️'; badgeClass = 'tag-success'; }
     else if (ev.type === 'peace-reject') { icon = '❌'; badgeClass = 'tag-danger'; }
+    else if (ev.type === 'trade-request') { icon = '📦'; badgeClass = 'tag-request'; }
+    else if (ev.type === 'trade-accept') { icon = '🤝'; badgeClass = 'tag-success'; }
+    else if (ev.type === 'trade-reject') { icon = '❌'; badgeClass = 'tag-danger'; }
     else if (ev.type === 'war') { icon = '⚔️'; badgeClass = 'tag-danger'; }
     else if (ev.type === 'break') { icon = '💔'; badgeClass = 'tag-warning'; }
     else if (ev.type === 'reject') { icon = '⛔'; badgeClass = 'tag-danger'; }
@@ -199,6 +281,298 @@ function renderDiploFeed() {
   }).join('');
 }
 
+// ---------- pathfinding & trade routes ----------
+function getSeaPath(startTile, targetTile) {
+  const startSeas = [];
+  if (!land[startTile]) startSeas.push(startTile);
+  else {
+    for (const j of nbrs(startTile)) if (!land[j]) startSeas.push(j);
+  }
+  if (!startSeas.length) return null;
+
+  const targetSeas = new Set();
+  if (!land[targetTile]) targetSeas.add(targetTile);
+  else {
+    for (const j of nbrs(targetTile)) if (!land[j]) targetSeas.add(j);
+  }
+  if (!targetSeas.size) return null;
+
+  const tx = targetTile % W, ty = (targetTile / W) | 0;
+  let startSea = -1, minD = 1e9;
+  for (const s of startSeas) {
+    const sc = waterComp[s];
+    let reachable = false;
+    for (const t of targetSeas) {
+      if (waterComp[t] === sc) { reachable = true; break; }
+    }
+    if (reachable) {
+      const d = Math.hypot((s % W) - tx, ((s / W) | 0) - ty);
+      if (d < minD) { minD = d; startSea = s; }
+    }
+  }
+  if (startSea === -1) return null;
+
+  if (targetSeas.has(startSea)) {
+    const pts = [{ x: startSea % W + 0.5, y: ((startSea / W) | 0) + 0.5 }];
+    if (land[targetTile]) pts.push({ x: tx + 0.5, y: ty + 0.5 });
+    return pts;
+  }
+
+  const dist = new Float32Array(N).fill(1e9);
+  const parent = new Int32Array(N).fill(-1);
+  const inOpen = new Uint8Array(N);
+  const heap = [startSea];
+  const fScore = new Float32Array(N).fill(1e9);
+
+  dist[startSea] = 0;
+  fScore[startSea] = Math.hypot((startSea % W) - tx, ((startSea / W) | 0) - ty);
+  inOpen[startSea] = 1;
+
+  function push(idx) {
+    heap.push(idx);
+    inOpen[idx] = 1;
+    let i = heap.length - 1;
+    while (i > 0) {
+      const p = (i - 1) >> 1;
+      if (fScore[heap[i]] < fScore[heap[p]]) {
+        const t = heap[i]; heap[i] = heap[p]; heap[p] = t;
+        i = p;
+      } else break;
+    }
+  }
+
+  function pop() {
+    const top = heap[0], bot = heap.pop();
+    inOpen[top] = 0;
+    if (heap.length > 0) {
+      heap[0] = bot;
+      let i = 0;
+      while (true) {
+        let best = i, l = (i << 1) + 1, r = l + 1;
+        if (l < heap.length && fScore[heap[l]] < fScore[heap[best]]) best = l;
+        if (r < heap.length && fScore[heap[r]] < fScore[heap[best]]) best = r;
+        if (best !== i) {
+          const t = heap[i]; heap[i] = heap[best]; heap[best] = t;
+          i = best;
+        } else break;
+      }
+    }
+    return top;
+  }
+
+  const dxs = [1, -1, 0, 0, 1, -1, 1, -1];
+  const dys = [0, 0, 1, -1, 1, 1, -1, -1];
+  const costs = [1, 1, 1, 1, 1.414, 1.414, 1.414, 1.414];
+  let reachedEnd = -1;
+
+  while (heap.length > 0) {
+    const curr = pop();
+    if (targetSeas.has(curr)) {
+      reachedEnd = curr;
+      break;
+    }
+    const cx = curr % W, cy = (curr / W) | 0, cd = dist[curr];
+
+    for (let d = 0; d < 8; d++) {
+      const nx = cx + dxs[d], ny = cy + dys[d];
+      if (nx < 0 || nx >= W || ny < 0 || ny >= H) continue;
+      const ni = ny * W + nx;
+      if (land[ni]) continue;
+      if (d >= 4 && (land[cy * W + nx] || land[ny * W + cx])) continue;
+
+      const coastCost = (nbrs(ni).some(j => land[j]) && !targetSeas.has(ni)) ? 0.35 : 0;
+      const nd = cd + costs[d] + coastCost;
+      if (nd < dist[ni]) {
+        dist[ni] = nd;
+        parent[ni] = curr;
+        fScore[ni] = nd + Math.hypot(nx - tx, ny - ty);
+        if (!inOpen[ni]) push(ni);
+      }
+    }
+  }
+
+  if (reachedEnd === -1) return null;
+
+  const rawPath = [];
+  let s = reachedEnd;
+  while (s !== -1) {
+    rawPath.push({ x: s % W + 0.5, y: ((s / W) | 0) + 0.5 });
+    s = parent[s];
+  }
+  rawPath.reverse();
+  if (land[targetTile]) {
+    rawPath.push({ x: tx + 0.5, y: ty + 0.5 });
+  }
+  return rawPath;
+}
+
+function findLandTradePath(hubA, hubB, pidA, pidB) {
+  if (hubA < 0 || hubB < 0 || !land[hubA] || !land[hubB]) return null;
+  const dist = new Float32Array(N).fill(1e9);
+  const parent = new Int32Array(N).fill(-1);
+  const q = [hubA];
+  dist[hubA] = 0;
+  let reached = false;
+
+  for (let head = 0; head < q.length; head++) {
+    const curr = q[head];
+    if (curr === hubB) { reached = true; break; }
+    const cx = curr % W, cy = (curr / W) | 0;
+    const dxs = [1, -1, 0, 0], dys = [0, 0, 1, -1];
+    for (let d = 0; d < 4; d++) {
+      const nx = cx + dxs[d], ny = cy + dys[d];
+      if (nx < 0 || nx >= W || ny < 0 || ny >= H) continue;
+      const ni = ny * W + nx;
+      if (!land[ni]) continue;
+      const o = owner[ni];
+      if (o !== 0 && o !== pidA && o !== pidB && !(friendly(o, pidA) && friendly(o, pidB))) continue;
+
+      const nd = dist[curr] + (o === pidA || o === pidB ? 1 : 1.5);
+      if (nd < dist[ni]) {
+        dist[ni] = nd;
+        parent[ni] = curr;
+        q.push(ni);
+      }
+    }
+  }
+
+  if (!reached) return null;
+  const path = [];
+  let s = hubB;
+  while (s !== -1) {
+    path.push(s);
+    s = parent[s];
+  }
+  path.reverse();
+  return path;
+}
+
+function getTradeHub(pid) {
+  for (let i = 0; i < N; i++) if (owner[i] === pid && building[i] === 1) return i;
+  const p = players[pid];
+  if (!p) return -1;
+  const startTile = p.sy * W + p.sx;
+  if (owner[startTile] === pid && land[startTile]) return startTile;
+  for (let i = 0; i < N; i++) if (owner[i] === pid && land[i]) return i;
+  return -1;
+}
+
+function getTradePort(pid) {
+  for (let i = 0; i < N; i++) if (owner[i] === pid && building[i] === 2) return i;
+  for (let i = 0; i < N; i++) if (owner[i] === pid && isCoast(i)) return i;
+  return -1;
+}
+
+function isTrading(a, b) {
+  return tradeAgreements.some(t => (t.a === a && t.b === b) || (t.a === b && t.b === a));
+}
+
+function getTrade(a, b) {
+  return tradeAgreements.find(t => (t.a === a && t.b === b) || (t.a === b && t.b === a));
+}
+
+function cancelTrade(a, b, reason) {
+  const ex = getTrade(a, b);
+  if (!ex) return;
+  tradeAgreements = tradeAgreements.filter(t => t !== ex);
+  if (a === HUMAN || b === HUMAN) {
+    const other = a === HUMAN ? players[b] : players[a];
+    const otherName = other ? other.name : 'partner';
+    showToast('Trade agreement with ' + otherName + ' ended' + (reason ? ' (' + reason + ')' : '.') );
+  }
+}
+
+function setupTradeRoute(pidA, pidB) {
+  if (pidA === pidB || isTrading(pidA, pidB)) return { ok: false, reason: 'Already trading or invalid.' };
+  const pa = players[pidA], pb = players[pidB];
+  if (!pa || !pb || !pa.alive || !pb.alive) return { ok: false, reason: 'Nation unavailable.' };
+
+  // 1. Try land connection (railroads)
+  const hubA = getTradeHub(pidA), hubB = getTradeHub(pidB);
+  let railPath = null;
+  if (hubA !== -1 && hubB !== -1) {
+    railPath = findLandTradePath(hubA, hubB, pidA, pidB);
+  }
+
+  if (railPath && railPath.length >= 3) {
+    const duration = Math.max(30, railPath.length * 4);
+    const trade = {
+      a: pidA,
+      b: pidB,
+      type: 'rail',
+      path: railPath,
+      train: { progress: 0, duration },
+      goldBonus: 2.2
+    };
+    tradeAgreements.push(trade);
+    return { ok: true, trade, type: 'rail' };
+  }
+
+  // 2. If disconnected by sea, try port-to-port sea trade
+  const portA = getTradePort(pidA), portB = getTradePort(pidB);
+  if (portA === -1 || portB === -1) {
+    return { ok: false, reason: 'Overseas trade requires a coastal port in both nations.' };
+  }
+
+  const seaPath = getSeaPath(portA, portB);
+  if (!seaPath || seaPath.length < 3) {
+    return { ok: false, reason: 'No navigable sea route between ports.' };
+  }
+
+  const duration = Math.max(40, seaPath.length * 4);
+  const trade = {
+    a: pidA,
+    b: pidB,
+    type: 'sea',
+    path: seaPath,
+    portA,
+    portB,
+    tradeShips: [
+      { id: 1, progress: 0, duration, dir: 1, sunk: false, sinkAnim: 0, respawnTimer: 0, x: seaPath[0] % W + 0.5, y: ((seaPath[0] / W) | 0) + 0.5 },
+      { id: 2, progress: Math.floor(duration / 2), duration, dir: -1, sunk: false, sinkAnim: 0, respawnTimer: 0, x: seaPath[seaPath.length - 1] % W + 0.5, y: ((seaPath[seaPath.length - 1] / W) | 0) + 0.5 }
+    ],
+    goldBonus: 2.2
+  };
+  tradeAgreements.push(trade);
+  return { ok: true, trade, type: 'sea' };
+}
+
+function botAnswerTrade(bot, pid) {
+  const r = relation(bot.id, pid);
+  if (r !== 'peace' && r !== 'alliance') return false;
+  return rnd() < 0.85;
+}
+
+function getAttackShipPos(na) {
+  if (na.path && na.path.length) {
+    const t = Math.min(1, na.progress / na.duration);
+    const idx = t * (na.path.length - 1);
+    const i0 = Math.floor(idx), i1 = Math.min(na.path.length - 1, i0 + 1);
+    const f = idx - i0;
+    return {
+      x: na.path[i0].x + (na.path[i1].x - na.path[i0].x) * f,
+      y: na.path[i0].y + (na.path[i1].y - na.path[i0].y) * f
+    };
+  }
+  const sea = nbrs(na.ship.dock).find(j => !land[j]);
+  const dockX = sea === undefined ? na.ship.dock % W + .5 : sea % W + .5;
+  const dockY = sea === undefined ? ((na.ship.dock / W) | 0) + .5 : ((sea / W) | 0) + .5;
+  return {
+    x: dockX + (na.target % W + .5 - dockX) * na.progress / na.duration,
+    y: dockY + (((na.target / W) | 0) + .5 - dockY) * na.progress / na.duration
+  };
+}
+
+function getShipPos(s) {
+  const attack = navalAttacks.find(a => a.ship === s);
+  if (attack) return getAttackShipPos(attack);
+  const sea = nbrs(s.dock).find(j => !land[j]);
+  return {
+    x: sea === undefined ? s.dock % W + .5 : sea % W + .5,
+    y: sea === undefined ? ((s.dock / W) | 0) + .5 : ((sea / W) | 0) + .5
+  };
+}
+
 let botOffset = 0;
 function newGame() {
   BOTS = Math.max(1, Math.min(BOTS, 40));
@@ -206,6 +580,7 @@ function newGame() {
   botOffset = (rnd() * COUNTRIES.length) | 0;
   owner.fill(0); building.fill(0); attacks = []; ships = []; navalAttacks = []; tick = 0; over = false; players = [null]; mode = null; rel = {};
   pendingOffers = []; activeOffer = null; humanOfferCooldown = 0; if ($('offer')) $('offer').hidden = true;
+  tradeAgreements = []; sinkingEffects = []; cannonEffects = [];
   diploEvents = []; renderDiploFeed();
   updateCoastTiles();
   const spots = [];
@@ -259,6 +634,21 @@ function economy() {
     else p.troops = Math.max(c, p.troops - (p.troops - c) * .02);
     p.gold += (p.tiles * .015 + p.cities * 0.7 + p.ports * 1.1 + .4) * (TICK / 1000) * 1.6;
   }
+  // Trade income
+  for (let tIdx = tradeAgreements.length - 1; tIdx >= 0; tIdx--) {
+    const tr = tradeAgreements[tIdx];
+    const pa = players[tr.a], pb = players[tr.b];
+    if (!pa || !pb || !pa.alive || !pb.alive || !friendly(tr.a, tr.b)) {
+      tradeAgreements.splice(tIdx, 1);
+      continue;
+    }
+    let rate = 0;
+    if (tr.type === 'rail') rate = tr.goldBonus;
+    else if (tr.type === 'sea') rate = tr.tradeShips.filter(s => !s.sunk).length * 1.1;
+    const perTick = rate * (TICK / 1000) * 1.6;
+    pa.gold += perTick;
+    pb.gold += perTick;
+  }
 }
 
 // ---------- diplomacy ----------
@@ -282,16 +672,50 @@ function diplomacy(pid, target, kind) {
  if (!bot || !bot.alive || target === pid) return;
  if (kind === 'war') {
    setRelation(pid, target, 'neutral'); rel[rkey(pid, target)] = 'war';
+   cancelTrade(pid, target, 'War declared');
    const msg = 'You declared war on ' + bot.name + '.';
    showToast(msg);
    addDiploEvent('war', msg, bot);
+   playSfx('war');
    return;
  }
  if (kind === 'break') {
    setRelation(pid, target, 'neutral');
+   cancelTrade(pid, target, 'Treaty ended');
    const msg = 'Treaty with ' + bot.name + ' ended.';
    showToast(msg);
    addDiploEvent('break', msg, bot);
+   return;
+ }
+ if (kind === 'cancel-trade') {
+   cancelTrade(pid, target, 'Trade cancelled');
+   const msg = 'Trade route with ' + bot.name + ' cancelled.';
+   showToast(msg);
+   addDiploEvent('break', msg, bot);
+   return;
+ }
+ if (kind === 'trade') {
+   if (isTrading(pid, target)) {
+     showToast('You already have an active trade route with ' + bot.name + '.');
+     return;
+   }
+   if (botAnswerTrade(bot, pid)) {
+     const res = setupTradeRoute(pid, target);
+     if (res.ok) {
+       const msg = bot.name + ' accepted trade! ' + (res.type === 'rail' ? 'Railroads established.' : 'Merchant fleet launched.');
+       showToast(msg);
+       addDiploEvent('trade-accept', msg, bot);
+       playSfx('trade');
+     } else {
+       const msg = bot.name + ' agreed to trade, but: ' + res.reason;
+       showToast(msg);
+       addDiploEvent('trade-reject', msg, bot);
+     }
+   } else {
+     const msg = bot.name + ' rejected your trade proposal.';
+     showToast(msg);
+     addDiploEvent('trade-reject', msg, bot);
+   }
    return;
  }
  if (botAnswer(bot, pid, kind)) {
@@ -299,6 +723,7 @@ function diplomacy(pid, target, kind) {
    const msg = bot.name + ' accepted your ' + (kind === 'peace' ? 'peace offer.' : 'alliance request.');
    showToast(msg);
    addDiploEvent(kind === 'peace' ? 'peace-accept' : 'alliance-accept', msg, bot);
+   playSfx('treaty');
  } else {
    const msg = bot.name + ' rejected your ' + (kind === 'peace' ? 'peace offer.' : 'alliance request.');
    showToast(msg);
@@ -316,12 +741,13 @@ function showNextOffer() {
    activeOffer = null; showNextOffer(); return;
  }
  const isAlliance = activeOffer.kind === 'alliance';
- const offerTitle = isAlliance ? 'Alliance Request' : 'Peace Offer';
- const offerMsg = bot.name + (isAlliance ? ' has requested an alliance with your nation.' : ' has sent a peace treaty offer.');
+ const isTrade = activeOffer.kind === 'trade';
+ const offerTitle = isAlliance ? 'Alliance Request' : isTrade ? 'Trade Proposal' : 'Peace Offer';
+ const offerMsg = bot.name + (isAlliance ? ' has requested an alliance with your nation.' : isTrade ? ' has proposed a trade route (+gold income).' : ' has sent a peace treaty offer.');
  if ($('offerTitle')) $('offerTitle').textContent = offerTitle;
  if ($('offerText')) $('offerText').textContent = offerMsg;
  if ($('offer')) $('offer').hidden = false;
- addDiploEvent(isAlliance ? 'alliance-request' : 'peace-offer', bot.name + ' requested ' + (isAlliance ? 'an alliance' : 'a peace treaty') + '.', bot);
+ addDiploEvent(isAlliance ? 'alliance-request' : isTrade ? 'trade-request' : 'peace-offer', bot.name + (isAlliance ? ' requested an alliance.' : isTrade ? ' proposed a trade route.' : ' sent a peace offer.'), bot);
 }
 function queueBotOffer(bot, kind) {
  const currentRelation = relation(HUMAN, bot.id);
@@ -336,12 +762,25 @@ function answerBotOffer(accept) {
  const bot = offer && players[offer.bot];
  if (bot && bot.alive && relation(HUMAN, bot.id) === offer.relation) {
    if (accept) {
-     setRelation(HUMAN, bot.id, offer.kind);
-     const msg = bot.name + ' is now ' + (offer.kind === 'peace' ? 'at peace with you.' : 'your ally.');
-     showToast(msg);
-     addDiploEvent(offer.kind === 'peace' ? 'peace-accept' : 'alliance-accept', 'You accepted ' + bot.name + '\'s ' + (offer.kind === 'peace' ? 'peace offer.' : 'alliance request.'), bot);
+     if (offer.kind === 'trade') {
+       const res = setupTradeRoute(HUMAN, bot.id);
+       if (res.ok) {
+         const msg = 'Trade established with ' + bot.name + '! ' + (res.type === 'rail' ? 'Railroads connected.' : 'Merchant fleet sailing.');
+         showToast(msg);
+         addDiploEvent('trade-accept', msg, bot);
+         playSfx('trade');
+       } else {
+         showToast('Could not establish route: ' + res.reason);
+       }
+     } else {
+       setRelation(HUMAN, bot.id, offer.kind);
+       const msg = bot.name + ' is now ' + (offer.kind === 'peace' ? 'at peace with you.' : 'your ally.');
+       showToast(msg);
+       addDiploEvent(offer.kind === 'peace' ? 'peace-accept' : 'alliance-accept', 'You accepted ' + bot.name + '\'s ' + (offer.kind === 'peace' ? 'peace offer.' : 'alliance request.'), bot);
+       playSfx('treaty');
+     }
    } else {
-     const msg = 'You rejected ' + bot.name + '\'s ' + (offer.kind === 'peace' ? 'peace offer.' : 'alliance request.');
+     const msg = 'You rejected ' + bot.name + '\'s ' + (offer.kind === 'peace' ? 'peace offer.' : offer.kind === 'alliance' ? 'alliance request.' : 'trade proposal.');
      showToast(msg);
      addDiploEvent('reject', msg, bot);
    }
@@ -618,6 +1057,10 @@ function botNavalThink(b) {
   if (!idleShip) return;
   if (navalAttacks.filter(a => a.p === b.id).length >= 2) return;
 
+  const dockWater = nbrs(idleShip.dock).find(j => !land[j]);
+  if (dockWater === undefined) return;
+  const dockComp = waterComp[dockWater];
+
   let hasLandTargets = false;
   for (let i = 0; i < N; i++) {
     if (owner[i] === b.id) {
@@ -639,6 +1082,9 @@ function botNavalThink(b) {
   for (const t of coastTiles) {
     const o = owner[t];
     if (o === b.id || (o && friendly(b.id, o))) continue;
+    const tWater = nbrs(t).find(j => !land[j]);
+    if (tWater === undefined || waterComp[tWater] !== dockComp) continue;
+
     const tx = t % W, ty = (t / W) | 0;
     const dist = Math.hypot(dockX - tx, dockY - ty);
     let score = 0;
@@ -678,8 +1124,10 @@ function botDiplomacyThink(bot, neighbors) {
   if (state === 'war' && strength < rivalStrength * .8 && rnd() < .3) kind = 'peace';
   else if (state === 'neutral' && rnd() < .035) kind = 'peace';
   else if (state === 'peace' && rnd() < .08) kind = 'alliance';
+  else if ((state === 'peace' || state === 'alliance') && !isTrading(bot.id, targetId) && rnd() < 0.1) kind = 'trade';
   else if ((state === 'peace' || state === 'alliance') && strength > rivalStrength * 1.4 && rnd() < (state === 'alliance' ? .025 : .06)) {
     setRelation(bot.id, targetId, 'neutral');
+    cancelTrade(bot.id, targetId, 'Treaty broken');
     if (targetId === HUMAN) {
       const msg = bot.name + ' broke its treaty with you.';
       showToast(msg);
@@ -692,6 +1140,10 @@ function botDiplomacyThink(bot, neighbors) {
     if (tick < humanOfferCooldown) return false;
     humanOfferCooldown = tick + 600;
     return queueBotOffer(bot, kind);
+  }
+  if (kind === 'trade') {
+    if (botAnswerTrade(target, bot.id)) setupTradeRoute(bot.id, targetId);
+    return true;
   }
   if (botAnswer(target, bot.id, kind)) setRelation(bot.id, targetId, kind);
   return true;
@@ -728,25 +1180,38 @@ function startNavalAttack(pid, target, frac) {
   if (owner[target] && friendly(pid, owner[target])) { if (pid === HUMAN) showToast('You have a treaty with that nation.'); return false; }
   const send = Math.floor(p.troops * frac);
   if (send < 5) { if (pid === HUMAN) showToast('You need at least 5 troops for an attack.'); return false; }
+
+  const seaPath = getSeaPath(ship.dock, target);
+  if (!seaPath || seaPath.length < 2) {
+    if (pid === HUMAN) showToast('No navigable sea passage to that coast (land/islands block the way).');
+    return false;
+  }
+
   if (owner[target]) {
     const wasWar = relation(pid, owner[target]) === 'war';
     setRelation(pid, owner[target], 'war');
+    cancelTrade(pid, owner[target], 'War declared');
     if (!wasWar) {
       if (owner[target] === HUMAN) {
         const msg = p.name + ' declared war and launched a naval invasion!';
         showToast(msg);
         addDiploEvent('war', msg, p);
+        playSfx('war');
       } else if (pid === HUMAN) {
         const msg = 'You declared war on ' + players[owner[target]].name + ' with a naval invasion!';
         showToast(msg);
         addDiploEvent('war', msg, players[owner[target]]);
+        playSfx('war');
       }
     }
   }
   p.troops -= send; ship.busy = true;
-  const distance = Math.hypot(ship.dock % W - target % W, ((ship.dock / W) | 0) - ((target / W) | 0));
-  navalAttacks.push({ p: pid, target, troops: send, ship, progress: 0, duration: Math.max(12, Math.ceil(distance / 2)) });
-  if (pid === HUMAN) showToast('Fleet dispatched to the coast.');
+  const duration = Math.max(16, Math.ceil(seaPath.length * 2.4));
+  navalAttacks.push({ p: pid, target, troops: send, ship, path: seaPath, progress: 0, duration });
+  if (pid === HUMAN) {
+    showToast('Fleet dispatched, navigating around islands.');
+    playSfx('splash');
+  }
   return true;
 }
 function stepNavalAttacks() {
@@ -767,14 +1232,19 @@ function stepNavalAttacks() {
       owner[a.target] = a.p; attacker.tiles++;
       attacker.troops += a.troops - cost; dirty = true;
       a.ship.busy = false;
-      if (a.p === HUMAN) showToast('Naval landing secured!');
-      else if (prevOwner === HUMAN) {
+      playSfx('cannon');
+      if (a.p === HUMAN) {
+        showToast('Naval landing secured!');
+        playSfx('treaty');
+      } else if (prevOwner === HUMAN) {
         showToast(attacker.name + ' secured a naval landing on your coast!');
         addDiploEvent('war', attacker.name + ' landed troops on your coast!', attacker);
+        playSfx('war');
       }
     } else {
       const prevOwner = owner[a.target];
       a.ship.busy = false; ships = ships.filter(s => s !== a.ship);
+      playSfx('splash');
       if (a.p === HUMAN) showToast('The landing failed and your ship was lost.');
       else if (prevOwner === HUMAN) {
         showToast('Your coastal defenses repelled a naval landing from ' + attacker.name + '!');
@@ -784,10 +1254,154 @@ function stepNavalAttacks() {
   navalAttacks = active;
 }
 
+let cannonShots = [];
+let explosions = [];
+let smokeParticles = [];
+
+function getWarshipCoord(target) {
+  if (!target) return { x: 0, y: 0 };
+  const attack = (target.path && target.progress !== undefined) ? target : navalAttacks.find(a => a.ship === target);
+  if (attack && attack.path && attack.path.length >= 2) {
+    const totalSegs = attack.path.length - 1;
+    const t = Math.max(0, Math.min(1, attack.progress / attack.duration));
+    const pos = t * totalSegs;
+    const idx = Math.min(totalSegs - 1, Math.floor(pos));
+    const frac = pos - idx;
+    const p1 = attack.path[idx], p2 = attack.path[Math.min(totalSegs, idx + 1)];
+    return {
+      x: (p1 % W) * (1 - frac) + (p2 % W) * frac + 0.5,
+      y: ((p1 / W) | 0) * (1 - frac) + (((p2 / W) | 0)) * frac + 0.5
+    };
+  }
+  if (target.dock !== undefined) {
+    const sea = nbrs(target.dock).find(j => !land[j]);
+    const tile = sea === undefined ? target.dock : sea;
+    return { x: tile % W + 0.5, y: ((tile / W) | 0) + 0.5 };
+  }
+  return { x: 0, y: 0 };
+}
+
+function stepNavalCombat() {
+  if (tick % 5 !== 0) return;
+  for (let i = 0; i < navalAttacks.length; i++) {
+    const a1 = navalAttacks[i];
+    const c1 = getWarshipCoord(a1);
+    for (let j = i + 1; j < navalAttacks.length; j++) {
+      const a2 = navalAttacks[j];
+      if (relation(a1.p, a2.p) !== 'war') continue;
+      const c2 = getWarshipCoord(a2);
+      const dist = Math.hypot(c1.x - c2.x, c1.y - c2.y);
+      if (dist < 4.5) {
+        cannonShots.push({ x1: c1.x, y1: c1.y, x2: c2.x, y2: c2.y, progress: 0, duration: 6, color: '#ffec3d' });
+        explosions.push({ x: c2.x + (rnd() - 0.5) * 0.5, y: c2.y + (rnd() - 0.5) * 0.5, r: 0.2, maxR: 1.4, life: 10, maxLife: 10, kind: 'splash' });
+        playSfx('cannon');
+        playSfx('splash');
+        const dmg1 = Math.min(a1.troops - 1, Math.ceil(rnd() * 3 + 2));
+        const dmg2 = Math.min(a2.troops - 1, Math.ceil(rnd() * 3 + 2));
+        a1.troops -= dmg1;
+        a2.troops -= dmg2;
+        if (a1.p === HUMAN || a2.p === HUMAN) {
+          showToast('Naval skirmish at sea between war fleets!');
+        }
+      }
+    }
+  }
+}
+
+function stepTrade() {
+  cannonShots = cannonShots.filter(c => ++c.progress < c.duration);
+  explosions = explosions.filter(e => { e.r += (e.maxR - e.r) * 0.25; return --e.life > 0; });
+  smokeParticles = smokeParticles.filter(p => { p.x += p.vx; p.y += p.vy; p.r += 0.04; return --p.life > 0; });
+
+  for (let tIdx = tradeAgreements.length - 1; tIdx >= 0; tIdx--) {
+    const tr = tradeAgreements[tIdx];
+    const pa = players[tr.a], pb = players[tr.b];
+    if (!pa || !pb || !pa.alive || !pb.alive || !friendly(tr.a, tr.b)) {
+      tradeAgreements.splice(tIdx, 1);
+      continue;
+    }
+
+    if (tr.type === 'rail') {
+      tr.train.progress = (tr.train.progress + 1) % tr.train.duration;
+      if (tr.train.progress % 4 === 0 && tr.path.length >= 2) {
+        const segs = tr.path.length - 1;
+        const pos = (tr.train.progress / tr.train.duration) * segs;
+        const idx = Math.min(segs - 1, Math.floor(pos));
+        const frac = pos - idx;
+        const p1 = tr.path[idx], p2 = tr.path[Math.min(segs, idx + 1)];
+        const tx = (p1 % W) * (1 - frac) + (p2 % W) * frac + 0.5;
+        const ty = ((p1 / W) | 0) * (1 - frac) + (((p2 / W) | 0)) * frac + 0.5;
+        smokeParticles.push({ x: tx, y: ty, vx: (rnd() - 0.5) * 0.04, vy: -0.06 - rnd() * 0.04, life: 16, maxLife: 16, r: 0.2 });
+      }
+    } else if (tr.type === 'sea') {
+      const enemyShips = [];
+      for (const s of ships) {
+        if (!s || !players[s.p] || !players[s.p].alive) continue;
+        if (relation(tr.a, s.p) === 'war' || relation(tr.b, s.p) === 'war') {
+          const coord = getWarshipCoord(s);
+          enemyShips.push({ p: s.p, ship: s, x: coord.x, y: coord.y });
+        }
+      }
+
+      for (const ship of tr.tradeShips) {
+        if (ship.sunk) {
+          if (ship.sinkAnim > 0) ship.sinkAnim = Math.max(0, ship.sinkAnim - 0.03);
+          ship.respawnTimer--;
+          if (ship.respawnTimer <= 0) {
+            ship.sunk = false;
+            ship.sinkAnim = 0;
+            ship.progress = ship.dir === 1 ? 0 : ship.duration;
+          }
+          continue;
+        }
+
+        ship.progress += ship.dir;
+        if (ship.progress >= ship.duration) {
+          ship.progress = ship.duration;
+          ship.dir = -1;
+        } else if (ship.progress <= 0) {
+          ship.progress = 0;
+          ship.dir = 1;
+        }
+
+        const totalSegs = tr.path.length - 1;
+        const tFrac = ship.progress / ship.duration;
+        const seg = tFrac * totalSegs;
+        const sIdx = Math.min(totalSegs - 1, Math.floor(seg));
+        const sFrac = seg - sIdx;
+        const p1 = tr.path[sIdx], p2 = tr.path[Math.min(totalSegs, sIdx + 1)];
+        const sx = (p1 % W) * (1 - sFrac) + (p2 % W) * sFrac + 0.5;
+        const sy = ((p1 / W) | 0) * (1 - sFrac) + (((p2 / W) | 0)) * sFrac + 0.5;
+        ship.x = sx;
+        ship.y = sy;
+
+        // Check proximity to enemy warships
+        for (const es of enemyShips) {
+          const d = Math.hypot(sx - es.x, sy - es.y);
+          if (d <= 4.2) {
+            ship.sunk = true;
+            ship.sinkAnim = 1.0;
+            ship.respawnTimer = 160;
+            cannonShots.push({ x1: es.x, y1: es.y, x2: sx, y2: sy, progress: 0, duration: 6, color: '#ffb300' });
+            explosions.push({ x: sx, y: sy, r: 0.3, maxR: 1.6, life: 14, maxLife: 14, kind: 'splash' });
+            playSfx('cannon');
+            playSfx('splash');
+            if (tr.a === HUMAN || tr.b === HUMAN) {
+              showToast('⚠️ A merchant trade ship was intercepted and sunk by enemy warships!');
+              addDiploEvent('war', 'Trade vessel intercepted and sunk near enemy fleet!', players[es.p]);
+            }
+            break;
+          }
+        }
+      }
+    }
+  }
+}
+
 // ---------- loop ----------
 function step() {
   if (!started || paused || over) return;
-  tick++; stepAttacks(); stepNavalAttacks();
+  tick++; stepAttacks(); stepNavalAttacks(); stepNavalCombat(); stepTrade();
   for (const s of ships.slice()) {
     if (!s.busy && (owner[s.dock] !== s.p || building[s.dock] !== 2)) {
       const altPorts = [];
@@ -896,19 +1510,228 @@ function render() {
     if (mode === 'ship') { ctx.beginPath(); ctx.arc(x, y, 1.2, 0, 7); } else shapePath(ctx, mode === 'city' ? bs.city : mode === 'port' ? bs.port : 'hex', x, y);
     ctx.fill(); ctx.stroke(); ctx.globalAlpha = 1;
   }
+
+  // Railroads & Trains
+  for (const tr of tradeAgreements) {
+    if (tr.type === 'rail' && tr.path.length >= 2) {
+      // Rails
+      ctx.save();
+      ctx.strokeStyle = '#444';
+      ctx.lineWidth = 0.32;
+      ctx.beginPath();
+      for (let k = 0; k < tr.path.length; k++) {
+        const pt = tr.path[k], px = pt % W + 0.5, py = ((pt / W) | 0) + 0.5;
+        if (k === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+      }
+      ctx.stroke();
+
+      // Wooden cross-ties
+      ctx.strokeStyle = '#6b4f2c';
+      ctx.lineWidth = 0.2;
+      for (let k = 0; k < tr.path.length - 1; k++) {
+        const p1 = tr.path[k], p2 = tr.path[k + 1];
+        const x1 = p1 % W + 0.5, y1 = ((p1 / W) | 0) + 0.5;
+        const x2 = p2 % W + 0.5, y2 = ((p2 / W) | 0) + 0.5;
+        const dx = x2 - x1, dy = y2 - y1;
+        const len = Math.hypot(dx, dy);
+        if (len > 0.001) {
+          const nx = -dy / len * 0.32, ny = dx / len * 0.32;
+          ctx.beginPath();
+          ctx.moveTo(x1 + nx, y1 + ny);
+          ctx.lineTo(x1 - nx, y1 - ny);
+          ctx.stroke();
+        }
+      }
+
+      // Train engine & cars
+      const segs = tr.path.length - 1;
+      const pos = (tr.train.progress / tr.train.duration) * segs;
+      const idx = Math.min(segs - 1, Math.floor(pos));
+      const frac = pos - idx;
+      const p1 = tr.path[idx], p2 = tr.path[Math.min(segs, idx + 1)];
+      const tx = (p1 % W) * (1 - frac) + (p2 % W) * frac + 0.5;
+      const ty = ((p1 / W) | 0) * (1 - frac) + (((p2 / W) | 0)) * frac + 0.5;
+      const angle = Math.atan2(((p2 / W) | 0) - ((p1 / W) | 0), (p2 % W) - (p1 % W));
+      ctx.translate(tx, ty);
+      ctx.rotate(angle);
+      // Locomotive body
+      ctx.fillStyle = '#222';
+      ctx.fillRect(-0.55, -0.22, 1.1, 0.44);
+      // Cab
+      ctx.fillStyle = '#8b0000';
+      ctx.fillRect(-0.55, -0.24, 0.4, 0.48);
+      // Chimney & Headlight
+      ctx.fillStyle = '#111';
+      ctx.fillRect(0.2, -0.15, 0.2, 0.3);
+      ctx.fillStyle = '#ffec3d';
+      ctx.beginPath(); ctx.arc(0.55, 0, 0.15, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    }
+  }
+
+  // Sea Trade Routes & Tiny Trade Ships
+  for (const tr of tradeAgreements) {
+    if (tr.type === 'sea' && tr.path.length >= 2) {
+      // Dashed trade lane
+      ctx.save();
+      ctx.setLineDash([0.6, 0.9]);
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
+      ctx.lineWidth = 0.22;
+      ctx.beginPath();
+      for (let k = 0; k < tr.path.length; k++) {
+        const pt = tr.path[k], px = pt % W + 0.5, py = ((pt / W) | 0) + 0.5;
+        if (k === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+      }
+      ctx.stroke();
+      ctx.restore();
+
+      // Tiny sailing trade ships
+      for (const ship of tr.tradeShips) {
+        if (ship.sinkAnim > 0) {
+          const sa = ship.sinkAnim;
+          ctx.save();
+          ctx.globalAlpha = sa;
+          ctx.translate(ship.x, ship.y);
+          ctx.rotate(0.6 * (1 - sa));
+          ctx.scale(0.7 * sa, 0.7 * sa);
+          ctx.fillStyle = '#4a2c11';
+          ctx.fillRect(-0.6, -0.2, 1.2, 0.4);
+          ctx.fillStyle = '#d4a373';
+          ctx.fillRect(-0.2, -0.5, 0.4, 0.3);
+          ctx.restore();
+          // Ripples
+          ctx.save();
+          ctx.strokeStyle = `rgba(255, 255, 255, ${sa * 0.75})`;
+          ctx.lineWidth = 0.15;
+          ctx.beginPath();
+          ctx.arc(ship.x, ship.y, (1 - sa) * 1.6 + 0.3, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.restore();
+        } else if (!ship.sunk) {
+          const totalSegs = tr.path.length - 1;
+          const tFrac = ship.progress / ship.duration;
+          const seg = tFrac * totalSegs;
+          const sIdx = Math.min(totalSegs - 1, Math.floor(seg));
+          const p1 = tr.path[sIdx], p2 = tr.path[Math.min(totalSegs, sIdx + 1)];
+          const angle = ship.dir === 1
+            ? Math.atan2(((p2 / W) | 0) - ((p1 / W) | 0), (p2 % W) - (p1 % W))
+            : Math.atan2(((p1 / W) | 0) - ((p2 / W) | 0), (p1 % W) - (p2 % W));
+
+          ctx.save();
+          ctx.translate(ship.x, ship.y);
+          ctx.rotate(angle);
+          ctx.scale(0.85, 0.85);
+          // Hull
+          ctx.fillStyle = '#8b5a2b';
+          ctx.strokeStyle = '#3d2006';
+          ctx.lineWidth = 0.15;
+          ctx.beginPath();
+          ctx.moveTo(-0.65, 0.22);
+          ctx.lineTo(0.65, 0.22);
+          ctx.lineTo(0.85, 0);
+          ctx.lineTo(0.65, -0.22);
+          ctx.lineTo(-0.65, -0.22);
+          ctx.closePath();
+          ctx.fill();
+          ctx.stroke();
+          // Cargo crates
+          ctx.fillStyle = '#d4a373';
+          ctx.fillRect(-0.35, -0.16, 0.3, 0.32);
+          ctx.fillStyle = '#b7b7a4';
+          ctx.fillRect(0.05, -0.16, 0.3, 0.32);
+          // Sail
+          const pa = players[tr.a];
+          ctx.fillStyle = pa ? 'rgba(' + pa.color.join(',') + ', 0.92)' : '#fff';
+          ctx.beginPath();
+          ctx.moveTo(-0.1, -0.7);
+          ctx.lineTo(-0.1, 0.05);
+          ctx.lineTo(0.45, -0.3);
+          ctx.closePath();
+          ctx.fill();
+          ctx.restore();
+        }
+      }
+    }
+  }
+
+  // Warships
   for (const ship of ships) {
     const attack = navalAttacks.find(a => a.ship === ship);
-    const sea = nbrs(ship.dock).find(j => !land[j]);
-    const dockX = sea === undefined ? ship.dock % W + .5 : sea % W + .5;
-    const dockY = sea === undefined ? ((ship.dock / W) | 0) + .5 : ((sea / W) | 0) + .5;
-    const x = attack ? dockX + (attack.target % W + .5 - dockX) * attack.progress / attack.duration : dockX;
-    const y = attack ? dockY + (((attack.target / W) | 0) + .5 - dockY) * attack.progress / attack.duration : dockY;
-    ctx.save(); ctx.translate(x, y); ctx.scale(1.2, 1.2);
+    let x, y, angle = 0;
+    if (attack && attack.path && attack.path.length >= 2) {
+      const totalSegs = attack.path.length - 1;
+      const t = Math.max(0, Math.min(1, attack.progress / attack.duration));
+      const pos = t * totalSegs;
+      const idx = Math.min(totalSegs - 1, Math.floor(pos));
+      const frac = pos - idx;
+      const p1 = attack.path[idx], p2 = attack.path[Math.min(totalSegs, idx + 1)];
+      x = (p1 % W) * (1 - frac) + (p2 % W) * frac + 0.5;
+      y = ((p1 / W) | 0) * (1 - frac) + (((p2 / W) | 0)) * frac + 0.5;
+      angle = Math.atan2(((p2 / W) | 0) - ((p1 / W) | 0), (p2 % W) - (p1 % W));
+    } else {
+      const sea = nbrs(ship.dock).find(j => !land[j]);
+      const dockX = sea === undefined ? ship.dock % W + .5 : sea % W + .5;
+      const dockY = sea === undefined ? ((ship.dock / W) | 0) + .5 : ((sea / W) | 0) + .5;
+      x = dockX;
+      y = dockY;
+    }
+    ctx.save(); ctx.translate(x, y);
+    if (attack) ctx.rotate(angle);
+    ctx.scale(1.2, 1.2);
     const sk = ship.p === HUMAN ? eqItem('ship') : CATALOG.ship.items[0];
     ctx.fillStyle = sk.hull; ctx.strokeStyle = sk.line; ctx.lineWidth = .2;
     ctx.beginPath(); ctx.moveTo(-.9, .1); ctx.lineTo(.9, .1); ctx.lineTo(.55, .55); ctx.lineTo(-.55, .55); ctx.closePath(); ctx.fill(); ctx.stroke();
-    ctx.fillStyle = ship.p === HUMAN ? sk.sail : (players[ship.p] ? 'rgb(' + players[ship.p].color.join(',') + ')' : sk.sail);
-    ctx.beginPath(); ctx.moveTo(-.05, -.9); ctx.lineTo(-.05, .05); ctx.lineTo(.62, .05); ctx.closePath(); ctx.fill(); ctx.stroke();
+    if (sk.hull === '#444') {
+      ctx.fillStyle = '#222';
+      ctx.fillRect(-0.25, -0.45, 0.22, 0.55);
+      ctx.fillStyle = '#666';
+      ctx.fillRect(0.1, 0.12, 0.45, 0.18);
+    } else {
+      ctx.fillStyle = ship.p === HUMAN ? sk.sail : (players[ship.p] ? 'rgb(' + players[ship.p].color.join(',') + ')' : sk.sail);
+      ctx.beginPath(); ctx.moveTo(-.05, -.9); ctx.lineTo(-.05, .05); ctx.lineTo(.62, .05); ctx.closePath(); ctx.fill(); ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  // Cannon projectile shots
+  for (const c of cannonShots) {
+    const t = c.progress / c.duration;
+    const cx = c.x1 + (c.x2 - c.x1) * t;
+    const cy = c.y1 + (c.y2 - c.y1) * t;
+    ctx.save();
+    ctx.strokeStyle = c.color || '#ffec3d';
+    ctx.lineWidth = 0.35;
+    ctx.beginPath();
+    ctx.moveTo(c.x1 + (c.x2 - c.x1) * Math.max(0, t - 0.25), c.y1 + (c.y2 - c.y1) * Math.max(0, t - 0.25));
+    ctx.lineTo(cx, cy);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // Explosions / splashes
+  for (const e of explosions) {
+    ctx.save();
+    const alpha = e.life / e.maxLife;
+    ctx.globalAlpha = alpha;
+    ctx.strokeStyle = '#fff';
+    ctx.fillStyle = 'rgba(255, 230, 150, 0.6)';
+    ctx.lineWidth = 0.25;
+    ctx.beginPath();
+    ctx.arc(e.x, e.y, e.r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // Smoke particles
+  for (const sm of smokeParticles) {
+    ctx.save();
+    const alpha = sm.life / sm.maxLife;
+    ctx.globalAlpha = alpha * 0.6;
+    ctx.fillStyle = '#ddd';
+    ctx.beginPath();
+    ctx.arc(sm.x, sm.y, sm.r, 0, Math.PI * 2);
+    ctx.fill();
     ctx.restore();
   }
   for (const p of players) if (p && p.alive && p.tiles > 20) { // labels at centroid
@@ -932,7 +1755,18 @@ function updateHud() {
   if (!me) return;
   const fleet = ships.filter(s => s.p === HUMAN).length, sailing = navalAttacks.filter(a => a.p === HUMAN).length;
   const c = cap(me, me.cities || 0);
-  const goldRate = ((me.tiles * 0.015 + (me.cities || 0) * 0.7 + (me.ports || 0) * 1.1 + 0.4) * 1.6).toFixed(1);
+
+  const activeTradeCount = tradeAgreements.filter(tr => tr.a === HUMAN || tr.b === HUMAN).length;
+  let tradeIncome = 0;
+  for (const tr of tradeAgreements) {
+    if (tr.a === HUMAN || tr.b === HUMAN) {
+      if (tr.type === 'rail') tradeIncome += tr.goldBonus;
+      else if (tr.type === 'sea') tradeIncome += tr.tradeShips.filter(s => !s.sunk).length * 1.1;
+    }
+  }
+  const tradeRate = (tradeIncome * 1.6).toFixed(1);
+
+  const goldRate = ((me.tiles * 0.015 + (me.cities || 0) * 0.7 + (me.ports || 0) * 1.1 + 0.4 + tradeIncome) * 1.6).toFixed(1);
   const troopRate = me.troops < c ? ((0.6 + Math.min(me.tiles, 500) * 0.025 * (1 - me.troops / c) + 0.12 * (me.cities || 0)) * 10).toFixed(1) : '0.0';
 
   if ($('stats')) {
@@ -961,6 +1795,7 @@ function updateHud() {
         '<span class="stat-asset" title="Ports (boosts gold)"><span class="asset-icon">⚓</span> Ports: <b>' + (me.ports || 0) + '</b></span>' +
         '<span class="stat-asset" title="Defense Posts (triples defense)"><span class="asset-icon">🛡️</span> Posts: <b>' + (me.posts || 0) + '</b></span>' +
         '<span class="stat-asset" title="Fleet"><span class="asset-icon">⛵</span> Ships: <b>' + fleet + '</b>' + (sailing ? ' <small class="stat-sailing">(' + sailing + ' sailing)</small>' : '') + '</span>' +
+        '<span class="stat-asset" title="Active trade agreements"><span class="asset-icon">🤝</span> Trade: <b>' + activeTradeCount + '</b>' + (activeTradeCount > 0 ? ' <small style="color:#2ecc40">(+' + tradeRate + 'g/s)</small>' : '') + '</span>' +
       '</div>';
   }
 
@@ -997,17 +1832,20 @@ cv.oncontextmenu = e => {
   const o = owner[t.y * W + t.x];
   if (!o || o === HUMAN || !land[t.y * W + t.x]) return hideCtx();
   const p = players[o], r = relation(HUMAN, o);
+  const trading = isTrading(HUMAN, o);
   const label = { neutral: 'Neutral', war: 'At war', peace: 'At peace', alliance: 'Allied' }[r];
-  ctxMenu.innerHTML = '<b>' + p.name + '</b><small>' + label + ' · Troops ' + Math.floor(p.troops) + ' · Land ' + p.tiles + '</small>';
+  ctxMenu.innerHTML = '<b>' + p.name + '</b><small>' + label + (trading ? ' · Trading 🤝' : '') + ' · Troops ' + Math.floor(p.troops) + ' · Land ' + p.tiles + '</small>';
   const add = (text, kind) => { const b = document.createElement('button'); b.textContent = text; b.onclick = () => { hideCtx(); diplomacy(HUMAN, o, kind); }; ctxMenu.appendChild(b); };
   if (r !== 'war') add('Declare war', 'war');
   if (r === 'neutral' || r === 'war') add('Propose peace', 'peace');
   if (r === 'peace') add('Request alliance', 'alliance');
+  if ((r === 'peace' || r === 'alliance') && !trading) add('Request trade', 'trade');
+  if (trading) add('Cancel trade', 'cancel-trade');
   if (r === 'peace' || r === 'alliance') add('Break treaty', 'break');
   ctxMenu.hidden = false;
   ctxMenu.style.left = Math.min(e.clientX, innerWidth - 190) + 'px'; ctxMenu.style.top = Math.min(e.clientY, innerHeight - 200) + 'px';
 };
-cv.onmousedown = e => { hideCtx(); if (e.button !== 0) return; drag = { x: e.clientX, y: e.clientY, cx: cam.x, cy: cam.y, moved: false }; };
+cv.onmousedown = e => { initAudio(); hideCtx(); if (e.button !== 0) return; drag = { x: e.clientX, y: e.clientY, cx: cam.x, cy: cam.y, moved: false }; };
 cv.onmousemove = e => { hover = toTile(e); if (!drag) return; const dx = e.clientX - drag.x, dy = e.clientY - drag.y; if (Math.abs(dx) + Math.abs(dy) > 4) drag.moved = true; if (drag.moved) { cam.x = drag.cx + dx; cam.y = drag.cy + dy; } };
 cv.onmouseup = e => {
   const d = drag; drag = null; if (!d || d.moved || over) return;
@@ -1174,6 +2012,15 @@ if ($('bLeave')) $('bLeave').onclick = () => {
   started = false;
   showMenu();
 };
+if ($('bSound')) {
+  $('bSound').onclick = () => {
+    initAudio();
+    soundEnabled = !soundEnabled;
+    $('bSound').textContent = soundEnabled ? '🔊 Sound: ON' : '🔇 Sound: OFF';
+    $('bSound').classList.toggle('off', !soundEnabled);
+    if (soundEnabled) playSfx('treaty');
+  };
+}
 addEventListener('keydown', e => { if (e.key === 'Escape' && started && !over) { if ($('menu').hidden) showMenu(); else { paused = false; $('menu').hidden = true; updateControls(); } } });
 addEventListener('resize', () => { resize(); fit(); });
 
