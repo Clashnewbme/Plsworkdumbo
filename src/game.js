@@ -571,7 +571,6 @@ function hsl(h, s, l) { // -> [r,g,b]
   return [f(0) * 255 | 0, f(8) * 255 | 0, f(4) * 255 | 0];
 }
 
-// ---------- economy ----------
 function count(p, b) { let c = 0; for (let i = 0; i < N; i++) if (owner[i] === p.id && building[i] === b) c++; return c; }
 function cap(p, cities) { return 150 + p.tiles * 8 + cities * 400; }
 function economy() {
@@ -594,7 +593,6 @@ function economy() {
     else p.troops = Math.max(c, p.troops - (p.troops - c) * .02);
     p.gold += (p.tiles * .015 + p.cities * 0.7 + p.ports * 1.1 + .4) * (TICK / 1000) * 1.6;
   }
-  // Trade income
   for (let tIdx = tradeAgreements.length - 1; tIdx >= 0; tIdx--) {
     const tr = tradeAgreements[tIdx];
     const pa = players[tr.a], pb = players[tr.b];
@@ -611,7 +609,6 @@ function economy() {
   }
 }
 
-// ---------- diplomacy ----------
 let rel = {};
 const rkey = (a, b) => a < b ? a + ',' + b : b + ',' + a;
 function relation(a, b) { return rel[rkey(a, b)] || 'neutral'; }
@@ -793,7 +790,6 @@ function stepAttacks() {
   attacks = attacks.filter(a => a.troops > 0);
 }
 
-// ---------- bots ----------
 function botThink(b) {
   botBuildThink(b);
   botNavalThink(b);
@@ -834,16 +830,13 @@ function botBuildThink(b) {
     }
   }
 
-  // 1. Initial port: top infrastructure priority if coastal
   if (hasCoast && myPorts === 0 && b.gold >= pPort) {
     const tile = findBestPortTile(b);
     if (tile !== -1 && tryBuild(b.id, 2, tile)) return;
   }
 
-  // Check if at war
   const atWar = players.some(p => p && p.alive && p.id !== b.id && relation(b.id, p.id) === 'war');
 
-  // 2. Urgent wartime defense
   if (atWar && myPosts < Math.min(5, Math.max(1, Math.floor(b.tiles / 15))) && b.gold >= pDefense) {
     const tile = findBestDefenseTile(b);
     if (tile !== -1 && tryBuild(b.id, 3, tile)) return;
