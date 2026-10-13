@@ -719,7 +719,7 @@ cv.onwheel = e => { e.preventDefault(); const k = e.deltaY < 0 ? 1.15 : 1 / 1.15
 function setMode(m) {
   mode = mode === m ? null : m;
   $('bCity').classList.toggle('on', mode === 'city'); $('bPort').classList.toggle('on', mode === 'port'); $('bDef').classList.toggle('on', mode === 'defense'); $('bShip').classList.toggle('on', mode === 'ship');
-  $('help').textContent = mode === 'city' ? 'City mode: click your empty land to build.' : mode === 'port' ? 'Port mode: click empty coastal land to build.' : mode === 'defense' ? 'Defense mode: click your empty land to build a post.' : mode === 'ship' ? 'Ship mode: click one of your ports to commission a ship.' : 'Click land to attack · Build on your territory · Build ships at ports';
+  if ($('help')) $('help').textContent = mode === 'city' ? 'City mode: click your empty land to build.' : mode === 'port' ? 'Port mode: click empty coastal land to build.' : mode === 'defense' ? 'Defense mode: click your empty land to build a post.' : mode === 'ship' ? 'Ship mode: click one of your ports to commission a ship.' : 'Click land to attack · Build on your territory · Build ships at ports';
 }
 $('bCity').onclick = () => setMode('city'); $('bPort').onclick = () => setMode('port'); $('bShip').onclick = () => setMode('ship'); $('bDef').onclick = () => setMode('defense');
 $('bCancel').onclick = () => {
@@ -819,7 +819,7 @@ function showMenu() {
   $('startSelect').value = SETTINGS.start; $('winSelect').value = SETTINGS.winPct;
   $('troopSelect').value = SETTINGS.troops; $('goldSelect').value = SETTINGS.gold;
   $('seaSelect').value = Math.round(-SETTINGS.sea * 100); updateCoins();
-  paused = true; $('menu').hidden = false; $('menuStart').hidden = started; $('menuResume').hidden = !started;
+  paused = true; $('menu').hidden = false; if ($('menuStart')) $('menuStart').hidden = started; $('menuResume').hidden = !started;
   updateControls();
 }
 function beginGame(reset) {
@@ -827,7 +827,7 @@ function beginGame(reset) {
   started = true; paused = false; $('menu').hidden = true; $('msg').hidden = true; updateHud(); setMode(null);
   updateControls();
 }
-$('menuStart').onclick = () => beginGame(true);
+if ($('menuStart')) $('menuStart').onclick = () => beginGame(true);
 $('menuResume').onclick = () => { paused = false; $('menu').hidden = true; updateControls(); };
 $('menuNew').onclick = () => beginGame(true);
 if ($('bMenu')) $('bMenu').onclick = showMenu;
