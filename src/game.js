@@ -216,7 +216,7 @@ function renderDiploFeed() {
   }
   feed.innerHTML = diploEvents.slice(0, 10).map(ev => {
     let icon = '', badgeClass = 'tag-neutral'; // will add later
-    if (ev.type === 'alliance-request') { icon = ''; badgeClass = 'tag-request'; }
+    if (ev.type === 'alliance-request') { icon = 'Assets/Badges/alliance-request.png'; badgeClass = 'tag-request'; }
     else if (ev.type === 'alliance-accept') { icon = ''; badgeClass = 'tag-success'; }
     else if (ev.type === 'alliance-reject') { icon = ''; badgeClass = 'tag-danger'; }
     else if (ev.type === 'peace-offer') { icon = ''; badgeClass = 'tag-request'; }
