@@ -273,8 +273,8 @@ function getSeaPath(startTile, targetTile) {
   if (startSea === -1) return null;
 
   if (targetSeas.has(startSea)) {
-    const pts = [{ x: startSea % W + 0.5, y: ((startSea / W) | 0) + 0.5 }];
-    if (land[targetTile]) pts.push({ x: tx + 0.5, y: ty + 0.5 });
+    const pts = [startSea];
+    if (land[targetTile]) pts.push(targetTile);
     return pts;
   }
 
@@ -356,12 +356,12 @@ function getSeaPath(startTile, targetTile) {
   const rawPath = [];
   let s = reachedEnd;
   while (s !== -1) {
-    rawPath.push({ x: s % W + 0.5, y: ((s / W) | 0) + 0.5 });
+    rawPath.push(s);
     s = parent[s];
   }
   rawPath.reverse();
   if (land[targetTile]) {
-    rawPath.push({ x: tx + 0.5, y: ty + 0.5 });
+    rawPath.push(targetTile);
   }
   return rawPath;
 }
@@ -504,16 +504,7 @@ function botAnswerTrade(bot, pid) {
 }
 
 function getAttackShipPos(na) {
-  if (na.path && na.path.length) {
-    const t = Math.min(1, na.progress / na.duration);
-    const idx = t * (na.path.length - 1);
-    const i0 = Math.floor(idx), i1 = Math.min(na.path.length - 1, i0 + 1);
-    const f = idx - i0;
-    return {
-      x: na.path[i0].x + (na.path[i1].x - na.path[i0].x) * f,
-      y: na.path[i0].y + (na.path[i1].y - na.path[i0].y) * f
-    };
-  }
+  if (na.path && na.path.length) return getWarshipCoord(na);
   const sea = nbrs(na.ship.dock).find(j => !land[j]);
   const dockX = sea === undefined ? na.ship.dock % W + .5 : sea % W + .5;
   const dockY = sea === undefined ? ((na.ship.dock / W) | 0) + .5 : ((sea / W) | 0) + .5;
@@ -1726,19 +1717,19 @@ function updateHud() {
     $('stats').innerHTML =
       '<div class="stats-pills">' +
         '<div class="stat-pill stat-gold" title="Current gold and gold income per second">' +
-          '<span class="stat-icon">🪙</span>' +
+          '<img class="stat-icon" src="Assets/Hotbar Assets/Gold.png" alt="">' +
           '<span class="stat-label">Gold</span>' +
           '<b class="stat-val">' + Math.floor(me.gold) + '</b>' +
           '<span class="stat-rate">(+' + goldRate + '/s)</span>' +
         '</div>' +
         '<div class="stat-pill stat-troops" title="Troop count, troop capacity, and growth per second">' +
-          '<span class="stat-icon">⚔️</span>' +
+          '<img class="stat-icon" src="Assets/Hotbar Assets/Troops.png" alt="">' +
           '<span class="stat-label">Troops</span>' +
           '<b class="stat-val">' + Math.floor(me.troops) + '/' + c + '</b>' +
           '<span class="stat-rate">(+' + troopRate + '/s)</span>' +
         '</div>' +
         '<div class="stat-pill stat-land" title="Territory tiles">' +
-          '<span class="stat-icon">🗺️</span>' +
+          '<img class="stat-icon" src="Assets/Hotbar Assets/Land.png" alt="">' +
           '<span class="stat-label">Land</span>' +
           '<b class="stat-val">' + me.tiles + '</b>' +
         '</div>' +
