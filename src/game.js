@@ -1,6 +1,4 @@
 'use strict';
-// Original real-time territory conquest game. Simulation runs on a hidden
-// grid; rendering is resolution-independent and smoothed (no visible tiles).
 const W = 192, H = 120, N = W * H, TICK = 100;
 let BOTS = 14;
 const BASE_COST = { city: 160, port: 110, defense: 120, ship: 200 };
@@ -20,12 +18,10 @@ function costOf(type, p) {
 const BTYPE = { city: 1, port: 2, defense: 3 };
 const DIFFS = { easy: { name: 'Easy', think: 24, grow: .85 }, normal: { name: 'Normal', think: 15, grow: 1 }, hard: { name: 'Hard', think: 9, grow: 1.2 }, brutal: { name: 'Brutal', think: 6, grow: 1.4 } };
 let difficulty = 'normal';
-// player-tweakable match settings (menu)
 const SETTINGS = { start: 2, winPct: 60, troops: 100, gold: 100, sea: 0 };
 
 const rnd = Math.random;
 
-// ---------- map generation (value noise) ----------
 function makeNoise() {
   const g = 12, v = [];
   for (let i = 0; i < (g + 1) * (g + 1); i++) v.push(rnd());
@@ -48,7 +44,6 @@ const MAPS = {
   highlands: { name: 'Highlands', a: .8, b: 1.6, fall: .6, sea: .4 },
   scattered: { name: 'Scattered Isles', a: 3, b: 6, fall: .45, sea: .47 }
 };
-// ---------- flags (stripes: s, direction d, optional circle c, optional cross x) ----------
 const FLAGS = {
   France: { d: 'v', s: ['#0055a4', '#fff', '#ef4135'] }, Germany: { d: 'h', s: ['#000', '#dd0000', '#ffce00'] },
   Brazil: { d: 'h', s: ['#009c3b'], c: '#ffdf00' }, Japan: { d: 'h', s: ['#fff'], c: '#bc002d' },
@@ -77,7 +72,6 @@ function flagCss(f) {
   return 'linear-gradient(' + (f.d === 'v' ? 'to right' : 'to bottom') + ',' + st + ')';
 }
 
-// ---------- cosmetics catalog & persistent save ----------
 const SHAPES = ['rect', 'circle', 'star', 'diamond', 'tri', 'hex'];
 const CATALOG = {
   flag: { label: 'Flags', items: [{ id: 'none', name: 'No flag', price: 0 }].concat(COUNTRIES.map((c, k) => ({ id: c, name: c, price: 40 + (k % 5) * 20, flag: FLAGS[c] }))) },
@@ -114,7 +108,6 @@ function genMap(kind) {
   const m = MAPS[chosen] || MAPS.continents; sea = m.sea + SETTINGS.sea; landCount = 0;
   const n1 = makeNoise(), n2 = makeNoise(), n3 = makeNoise(), wx = makeNoise(), wy = makeNoise();
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-    // warp the sample point a little so coastlines are ragged instead of blobby
     const px = x + (wx(x, y, 1.5) - .5) * 14, py = y + (wy(x, y, 1.5) - .5) * 14;
     const dx = x / W - .5, dy = y / H - .5;
     const h = n1(px, py, m.a) * .5 + n2(px, py, m.b) * .3 + n3(px, py, m.b * 2.2) * .2 - Math.hypot(dx * 1.1, dy) * m.fall;
@@ -122,8 +115,6 @@ function genMap(kind) {
   }
   tidyCoast();
 }
-// two cellular passes: fill pin-holes, drop single-tile specks, then drop
-// islands too small to be worth fighting over
 function tidyCoast() {
   for (let pass = 0; pass < 2; pass++) {
     const next = land.slice();
@@ -170,7 +161,6 @@ function computeWaterComponents() {
   }
 }
 
-// ---------- audio system ----------
 let soundEnabled = true;
 const sfx = {
   button: new Audio('Assets/Sounds/Button.mp3'),
@@ -184,15 +174,14 @@ function playSfx(type) {
     const sound = sfx[type === 'trade' || type === 'treaty' ? 'trade' : type === 'button' ? 'button' : 'click'].cloneNode();
     const playback = sound.play();
     if (playback) playback.catch(() => {});
-  } catch (e) { /* ignore */ }
+  } catch (e) { /* epikk */ }
 }
 document.addEventListener('click', e => {
   if (e.target.closest('button')) playSfx('button');
 });
 
-// ---------- state ----------
-const owner = new Uint8Array(N);          // 0 = unclaimed
-const building = new Uint8Array(N);       // 0 none, 1 city, 2 port, 3 defense post
+const owner = new Uint8Array(N);          
+const building = new Uint8Array(N);      
 let flagOf = [], players = [], attacks = [], ships = [], navalAttacks = [], tick = 0, over = false, mode = null;
 let pendingOffers = [], activeOffer = null, humanOfferCooldown = 0;
 let tradeAgreements = [], sinkingEffects = [], cannonEffects = [];
@@ -226,19 +215,19 @@ function renderDiploFeed() {
     return;
   }
   feed.innerHTML = diploEvents.slice(0, 10).map(ev => {
-    let icon = '📜', badgeClass = 'tag-neutral';
-    if (ev.type === 'alliance-request') { icon = '📬'; badgeClass = 'tag-request'; }
-    else if (ev.type === 'alliance-accept') { icon = '🤝'; badgeClass = 'tag-success'; }
-    else if (ev.type === 'alliance-reject') { icon = '❌'; badgeClass = 'tag-danger'; }
-    else if (ev.type === 'peace-offer') { icon = '🕊️'; badgeClass = 'tag-request'; }
-    else if (ev.type === 'peace-accept') { icon = '🕊️'; badgeClass = 'tag-success'; }
-    else if (ev.type === 'peace-reject') { icon = '❌'; badgeClass = 'tag-danger'; }
-    else if (ev.type === 'trade-request') { icon = '📦'; badgeClass = 'tag-request'; }
-    else if (ev.type === 'trade-accept') { icon = '🤝'; badgeClass = 'tag-success'; }
-    else if (ev.type === 'trade-reject') { icon = '❌'; badgeClass = 'tag-danger'; }
-    else if (ev.type === 'war') { icon = '⚔️'; badgeClass = 'tag-danger'; }
-    else if (ev.type === 'break') { icon = '💔'; badgeClass = 'tag-warning'; }
-    else if (ev.type === 'reject') { icon = '⛔'; badgeClass = 'tag-danger'; }
+    let icon = '', badgeClass = 'tag-neutral'; // will add later
+    if (ev.type === 'alliance-request') { icon = ''; badgeClass = 'tag-request'; }
+    else if (ev.type === 'alliance-accept') { icon = ''; badgeClass = 'tag-success'; }
+    else if (ev.type === 'alliance-reject') { icon = ''; badgeClass = 'tag-danger'; }
+    else if (ev.type === 'peace-offer') { icon = ''; badgeClass = 'tag-request'; }
+    else if (ev.type === 'peace-accept') { icon = ''; badgeClass = 'tag-success'; }
+    else if (ev.type === 'peace-reject') { icon = ''; badgeClass = 'tag-danger'; }
+    else if (ev.type === 'trade-request') { icon = ''; badgeClass = 'tag-request'; }
+    else if (ev.type === 'trade-accept') { icon = ''; badgeClass = 'tag-success'; }
+    else if (ev.type === 'trade-reject') { icon = ''; badgeClass = 'tag-danger'; }
+    else if (ev.type === 'war') { icon = ''; badgeClass = 'tag-danger'; }
+    else if (ev.type === 'break') { icon = ''; badgeClass = 'tag-warning'; }
+    else if (ev.type === 'reject') { icon = ''; badgeClass = 'tag-danger'; }
 
     const flagHtml = ev.bot && ev.bot.flag ? '<i class="fl" style="background:' + flagCss(ev.bot.flag) + '"></i>' : '';
     const colorPill = ev.bot ? '<span class="diplo-color" style="background:rgb(' + ev.bot.color + ')"></span>' : '';
@@ -253,7 +242,6 @@ function renderDiploFeed() {
   }).join('');
 }
 
-// ---------- pathfinding & trade routes ----------
 function getSeaPath(startTile, targetTile) {
   const startSeas = [];
   if (!land[startTile]) startSeas.push(startTile);
