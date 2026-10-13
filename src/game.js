@@ -3,7 +3,20 @@
 // grid; rendering is resolution-independent and smoothed (no visible tiles).
 const W = 192, H = 120, N = W * H, TICK = 100;
 let BOTS = 14;
-const COST = { city: 150, port: 100, ship: 220, defense: 120 };
+const BASE_COST = { city: 160, port: 110, defense: 120, ship: 200 };
+const COST_SCALE = { city: 30, port: 20, defense: 15, ship: 25 };
+const COST = BASE_COST;
+function costOf(type, p) {
+  const k = typeof type === 'number' ? ['', 'city', 'port', 'defense'][type] : type;
+  if (!k || !BASE_COST[k]) return 0;
+  if (!p) return BASE_COST[k];
+  let owned = 0;
+  if (k === 'city') owned = p.cities || 0;
+  else if (k === 'port') owned = p.ports || 0;
+  else if (k === 'defense') owned = p.posts || 0;
+  else if (k === 'ship') owned = ships.filter(s => s.p === p.id).length;
+  return BASE_COST[k] + owned * (COST_SCALE[k] || 0);
+}
 const BTYPE = { city: 1, port: 2, defense: 3 };
 const DIFFS = { easy: { name: 'Easy', think: 24, grow: .85 }, normal: { name: 'Normal', think: 15, grow: 1 }, hard: { name: 'Hard', think: 9, grow: 1.2 }, brutal: { name: 'Brutal', think: 6, grow: 1.4 } };
 let difficulty = 'normal';
@@ -141,6 +154,11 @@ const nbrs = i => {
   return r;
 };
 const isCoast = i => nbrs(i).some(j => !land[j]);
+let coastTiles = [];
+function updateCoastTiles() {
+  coastTiles = [];
+  for (let i = 0; i < N; i++) if (land[i] && isCoast(i)) coastTiles.push(i);
+}
 
 let diploEvents = [];
 function addDiploEvent(type, message, bot) {
@@ -189,6 +207,7 @@ function newGame() {
   owner.fill(0); building.fill(0); attacks = []; ships = []; navalAttacks = []; tick = 0; over = false; players = [null]; mode = null; rel = {};
   pendingOffers = []; activeOffer = null; humanOfferCooldown = 0; if ($('offer')) $('offer').hidden = true;
   diploEvents = []; renderDiploFeed();
+  updateCoastTiles();
   const spots = [];
   // only spawn on solid ground, not on slivers of coast
   for (let i = 0; i < N; i++) if (land[i] && nbrs(i).every(j => land[j])) spots.push(i);
@@ -219,7 +238,7 @@ function hsl(h, s, l) { // -> [r,g,b]
 
 // ---------- economy ----------
 function count(p, b) { let c = 0; for (let i = 0; i < N; i++) if (owner[i] === p.id && building[i] === b) c++; return c; }
-function cap(p, cities) { return 200 + p.tiles * 12 + cities * 800; }
+function cap(p, cities) { return 150 + p.tiles * 8 + cities * 400; }
 function economy() {
   const cities = new Array(players.length).fill(0), ports = cities.slice(), tiles = cities.slice(), posts = cities.slice();
   for (let i = 0; i < N; i++) if (owner[i]) {
@@ -228,11 +247,17 @@ function economy() {
   for (const p of players) {
     if (!p) continue;
     p.tiles = tiles[p.id]; p.cities = cities[p.id]; p.ports = ports[p.id]; p.posts = posts[p.id];
-    if (!p.tiles) { if (p.alive) p.alive = false; attacks = attacks.filter(a => a.p !== p.id); continue; }
+    if (!p.tiles) {
+      if (p.alive) p.alive = false;
+      attacks = attacks.filter(a => a.p !== p.id);
+      ships = ships.filter(s => s.p !== p.id);
+      navalAttacks = navalAttacks.filter(a => a.p !== p.id);
+      continue;
+    }
     const c = cap(p, p.cities);
-    if (p.troops < c) p.troops = Math.min(c, p.troops + (1 + Math.min(p.tiles, 600) * .05 * (1 - p.troops / c) + 0.2 * p.cities) * (p.bot ? DIFFS[difficulty].grow : 1));
+    if (p.troops < c) p.troops = Math.min(c, p.troops + (0.6 + Math.min(p.tiles, 500) * .025 * (1 - p.troops / c) + 0.12 * p.cities) * (p.bot ? DIFFS[difficulty].grow : 1));
     else p.troops = Math.max(c, p.troops - (p.troops - c) * .02);
-    p.gold += (p.tiles * .02 + p.cities * 1 + p.ports * 1.5 + .5) * (TICK / 1000) * 2;
+    p.gold += (p.tiles * .015 + p.cities * 0.7 + p.ports * 1.1 + .4) * (TICK / 1000) * 1.6;
   }
 }
 
@@ -358,7 +383,8 @@ function stepAttacks() {
       if (done.has(j) || owner[j] !== a.t) continue;
       // big countries pay more per tile, so nobody snowballs forever
       const sprawl = 1 + att.tiles / (count_land() / 6);
-      const cost = (def ? 1 + def.troops / Math.max(1, def.tiles) * .7 : 1) * sprawl * (building[j] === 3 ? 3 : 1);
+      const baseCost = def ? (1.5 + def.troops / Math.max(1, def.tiles) * .75) : 1.6;
+      const cost = baseCost * sprawl * (building[j] === 3 ? 3 : 1);
       if (a.troops < cost) { att.troops += a.troops; a.troops = 0; break; }
       a.troops -= cost; done.add(j);
       if (def) { def.troops = Math.max(0, def.troops - cost * .8); def.tiles--; }
@@ -370,10 +396,9 @@ function stepAttacks() {
 
 // ---------- bots ----------
 function botThink(b) {
-  if (b.gold > COST.defense + 80 && rnd() < .15) tryBuild(b.id, 3, randomTile(b.id));
-  else if (b.gold > COST.city + 50 && rnd() < .5) tryBuild(b.id, 1, randomTile(b.id));
-  else if (b.gold > COST.port + 50 && rnd() < .3) tryBuild(b.id, 2, randomTile(b.id));
-  if (b.troops < 40 || attacks.some(a => a.p === b.id)) return;
+  botBuildThink(b);
+  botNavalThink(b);
+  if (b.troops < 35 || attacks.some(a => a.p === b.id)) return;
   const targets = new Map(); let free = false;
   for (let i = 0; i < N; i++) if (owner[i] === b.id) for (const j of nbrs(i)) if (land[j] && owner[j] !== b.id) {
     if (!owner[j]) free = true; else targets.set(owner[j], 1);
@@ -389,6 +414,260 @@ function botThink(b) {
     const advantage = b.troops / Math.max(1, players[best].troops);
     const attackChance = Math.max(.1, Math.min(.85, (advantage - .4) * .55));
     if (rnd() < attackChance) startAttack(b.id, best, .5);
+  }
+}
+function botBuildThink(b) {
+  const pDefense = costOf('defense', b);
+  const pCity = costOf('city', b);
+  const pPort = costOf('port', b);
+  const pShip = costOf('ship', b);
+
+  const myCities = b.cities || 0;
+  const myPorts = b.ports || 0;
+  const myPosts = b.posts || 0;
+  const myShips = ships.filter(s => s.p === b.id).length;
+
+  let hasCoast = false;
+  for (let i = 0; i < N; i++) {
+    if (owner[i] === b.id && isCoast(i)) {
+      hasCoast = true;
+      break;
+    }
+  }
+
+  // 1. Initial port: top infrastructure priority if coastal
+  if (hasCoast && myPorts === 0 && b.gold >= pPort) {
+    const tile = findBestPortTile(b);
+    if (tile !== -1 && tryBuild(b.id, 2, tile)) return;
+  }
+
+  // Check if at war
+  const atWar = players.some(p => p && p.alive && p.id !== b.id && relation(b.id, p.id) === 'war');
+
+  // 2. Urgent wartime defense
+  if (atWar && myPosts < Math.min(5, Math.max(1, Math.floor(b.tiles / 15))) && b.gold >= pDefense) {
+    const tile = findBestDefenseTile(b);
+    if (tile !== -1 && tryBuild(b.id, 3, tile)) return;
+  }
+
+  // Check if isolated on island (no land neighbors)
+  let hasLandBorders = false;
+  for (let i = 0; i < N; i++) {
+    if (owner[i] === b.id) {
+      for (const j of nbrs(i)) {
+        if (land[j] && owner[j] !== b.id) { hasLandBorders = true; break; }
+      }
+      if (hasLandBorders) break;
+    }
+  }
+
+  // 3. Ships: If has ports, maintain fleet of 1-3 ships
+  const desiredShips = !hasCoast ? 0 : (!hasLandBorders ? Math.min(3, Math.max(1, myPorts)) : (b.tiles < 50 ? 1 : Math.min(3, 1 + Math.floor(myPorts / 2))));
+  if (myPorts > 0 && myShips < desiredShips && b.gold >= pShip) {
+    const dock = findPortForShip(b);
+    if (dock !== -1 && tryBuildShip(b.id, dock)) return;
+  }
+
+  // If isolated island nation with no ships, save up for a ship first
+  if (!hasLandBorders && hasCoast && myPorts > 0 && myShips === 0 && b.gold < pShip) {
+    return;
+  }
+
+  // 4. Cities: Economic core development in safe interior
+  const maxCities = Math.max(1, Math.floor(b.tiles / 20));
+  if (b.tiles >= 12 && myCities < maxCities && b.gold >= pCity) {
+    const tile = findBestCityTile(b);
+    if (tile !== -1 && tryBuild(b.id, 1, tile)) return;
+  }
+
+  // 5. Peacetime border defense
+  if (!atWar && myPosts < Math.min(3, Math.floor(b.tiles / 25)) && b.gold >= pDefense + 30) {
+    const tile = findBestDefenseTile(b);
+    if (tile !== -1 && tryBuild(b.id, 3, tile)) return;
+  }
+
+  // 6. Additional ports for large coastal nations
+  if (hasCoast && myPorts < Math.min(3, Math.floor(b.tiles / 40)) && b.gold >= pPort + 40) {
+    const tile = findBestPortTile(b);
+    if (tile !== -1 && tryBuild(b.id, 2, tile)) return;
+  }
+}
+function findBestDefenseTile(b) {
+  let bestTile = -1, bestScore = -1e9;
+  const existingPosts = [];
+  for (let i = 0; i < N; i++) if (owner[i] === b.id && building[i] === 3) existingPosts.push(i);
+
+  for (let i = 0; i < N; i++) {
+    if (owner[i] !== b.id || building[i]) continue;
+    const x = i % W, y = (i / W) | 0;
+
+    let tooClose = false;
+    for (const ep of existingPosts) {
+      const ex = ep % W, ey = (ep / W) | 0;
+      if (Math.hypot(x - ex, y - ey) < 3.5) { tooClose = true; break; }
+    }
+    if (tooClose) continue;
+
+    let threat = 0, hasEnemyNeighbor = false;
+    for (const j of nbrs(i)) {
+      if (!land[j]) continue;
+      const o = owner[j];
+      if (o && o !== b.id) {
+        hasEnemyNeighbor = true;
+        const r = relation(b.id, o);
+        if (r === 'war') threat += 10;
+        else if (r === 'neutral') threat += 4;
+        else if (r === 'peace') threat += 1;
+        const enemy = players[o];
+        if (enemy && enemy.troops > b.troops) threat += 3;
+      }
+    }
+    if (!hasEnemyNeighbor) continue;
+    if (isCoast(i)) threat += 2;
+
+    if (threat > bestScore) {
+      bestScore = threat;
+      bestTile = i;
+    }
+  }
+  return bestTile;
+}
+function findBestCityTile(b) {
+  let bestTile = -1, bestScore = -1e9;
+  const existingCities = [];
+  for (let i = 0; i < N; i++) if (owner[i] === b.id && building[i] === 1) existingCities.push(i);
+
+  const cx = b.cx !== undefined ? b.cx : b.sx;
+  const cy = b.cy !== undefined ? b.cy : b.sy;
+
+  for (let i = 0; i < N; i++) {
+    if (owner[i] !== b.id || building[i]) continue;
+    const x = i % W, y = (i / W) | 0;
+
+    let tooClose = false;
+    for (const ec of existingCities) {
+      const ex = ec % W, ey = (ec / W) | 0;
+      if (Math.hypot(x - ex, y - ey) < 4.5) { tooClose = true; break; }
+    }
+    if (tooClose) continue;
+
+    let hostileNeighbors = 0, friendlyNeighbors = 0;
+    for (const j of nbrs(i)) {
+      if (!land[j]) continue;
+      const o = owner[j];
+      if (o && o !== b.id) {
+        if (!friendly(b.id, o)) hostileNeighbors++;
+      } else if (o === b.id) {
+        friendlyNeighbors++;
+      }
+    }
+    if (hostileNeighbors > 0) continue;
+
+    const distFromCenter = Math.hypot(x - cx, y - cy);
+    const score = friendlyNeighbors * 5 - distFromCenter * 0.4 + (rnd() * 2);
+    if (score > bestScore) {
+      bestScore = score;
+      bestTile = i;
+    }
+  }
+  return bestTile;
+}
+function findBestPortTile(b) {
+  let bestTile = -1, bestScore = -1e9;
+  const existingPorts = [];
+  for (let i = 0; i < N; i++) if (owner[i] === b.id && building[i] === 2) existingPorts.push(i);
+
+  for (let i = 0; i < N; i++) {
+    if (owner[i] !== b.id || building[i] || !isCoast(i)) continue;
+    const x = i % W, y = (i / W) | 0;
+
+    let tooClose = false;
+    for (const ep of existingPorts) {
+      const ex = ep % W, ey = (ep / W) | 0;
+      if (Math.hypot(x - ex, y - ey) < 6) { tooClose = true; break; }
+    }
+    if (tooClose) continue;
+
+    const seaNeighbors = nbrs(i).filter(j => !land[j]).length;
+    if (seaNeighbors === 0) continue;
+
+    let hostileNeighbors = 0;
+    for (const j of nbrs(i)) {
+      if (land[j] && owner[j] && owner[j] !== b.id && !friendly(b.id, owner[j])) hostileNeighbors++;
+    }
+
+    const score = seaNeighbors * 3 - hostileNeighbors * 5 + (rnd() * 2);
+    if (score > bestScore) {
+      bestScore = score;
+      bestTile = i;
+    }
+  }
+  return bestTile;
+}
+function findPortForShip(b) {
+  const ownPorts = [];
+  for (let i = 0; i < N; i++) if (owner[i] === b.id && building[i] === 2) ownPorts.push(i);
+  if (!ownPorts.length) return -1;
+  const emptyPorts = ownPorts.filter(p => !ships.some(s => s.dock === p && !s.busy));
+  if (emptyPorts.length) return emptyPorts[(rnd() * emptyPorts.length) | 0];
+  return ownPorts[(rnd() * ownPorts.length) | 0];
+}
+function botNavalThink(b) {
+  if (b.troops < 35) return;
+  const idleShip = ships.find(s => s.p === b.id && !s.busy);
+  if (!idleShip) return;
+  if (navalAttacks.filter(a => a.p === b.id).length >= 2) return;
+
+  let hasLandTargets = false;
+  for (let i = 0; i < N; i++) {
+    if (owner[i] === b.id) {
+      for (const j of nbrs(i)) {
+        if (land[j] && owner[j] !== b.id && !friendly(b.id, owner[j])) {
+          hasLandTargets = true;
+          break;
+        }
+      }
+      if (hasLandTargets) break;
+    }
+  }
+
+  if (hasLandTargets && rnd() > 0.35) return;
+
+  const dockX = idleShip.dock % W, dockY = (idleShip.dock / W) | 0;
+  let bestTarget = -1, bestScore = -1e9;
+
+  for (const t of coastTiles) {
+    const o = owner[t];
+    if (o === b.id || (o && friendly(b.id, o))) continue;
+    const tx = t % W, ty = (t / W) | 0;
+    const dist = Math.hypot(dockX - tx, dockY - ty);
+    let score = 0;
+    if (!o) {
+      score = (hasLandTargets ? 40 : 80) - dist * 0.35 + (rnd() * 15);
+    } else {
+      const enemy = players[o];
+      if (!enemy || !enemy.alive) continue;
+      const atWar = relation(b.id, o) === 'war';
+      const strengthAdv = (b.troops - enemy.troops) / Math.max(1, enemy.troops);
+      score = (atWar ? 70 : 30) + strengthAdv * 20 - dist * 0.35 + (rnd() * 15);
+    }
+    if (score > bestScore) {
+      bestScore = score;
+      bestTarget = t;
+    }
+  }
+
+  if (bestTarget !== -1 && bestScore > 0) {
+    const targetOwner = owner[bestTarget];
+    let frac = 0.3;
+    if (!targetOwner) {
+      frac = Math.min(0.35, Math.max(0.15, 12 / b.troops));
+    } else {
+      const def = players[targetOwner];
+      const garrison = def ? def.troops / Math.max(1, def.tiles) : 1;
+      frac = Math.min(0.55, Math.max(0.25, (garrison * 2 + 10) / b.troops));
+    }
+    startNavalAttack(b.id, bestTarget, frac);
   }
 }
 function botDiplomacyThink(bot, neighbors) {
@@ -422,30 +701,52 @@ function randomTile(pid) {
   return own.length ? own[(rnd() * own.length) | 0] : -1;
 }
 function tryBuild(pid, type, i) {
-  const p = players[pid], cost = COST[['', 'city', 'port', 'defense'][type]];
+  const p = players[pid];
+  if (!p) return false;
+  const cost = costOf(type, p);
   if (i < 0 || owner[i] !== pid || building[i] || p.gold < cost) return false;
   if (type === 2 && !isCoast(i)) return false;
-  p.gold -= cost; building[i] = type; dirty = true; return true;
+  p.gold -= cost; building[i] = type;
+  if (type === 1) p.cities = (p.cities || 0) + 1;
+  else if (type === 2) p.ports = (p.ports || 0) + 1;
+  else if (type === 3) p.posts = (p.posts || 0) + 1;
+  dirty = true; return true;
 }
 function tryBuildShip(pid, i) {
   const p = players[pid];
-  if (i < 0 || owner[i] !== pid || building[i] !== 2 || p.gold < COST.ship || ships.filter(s => s.p === pid).length >= 8) return false;
-  p.gold -= COST.ship; ships.push({ p: pid, dock: i, busy: false }); dirty = true; return true;
+  if (!p) return false;
+  const cost = costOf('ship', p);
+  if (i < 0 || owner[i] !== pid || building[i] !== 2 || p.gold < cost || ships.filter(s => s.p === pid).length >= 8) return false;
+  p.gold -= cost; ships.push({ p: pid, dock: i, busy: false }); dirty = true; return true;
 }
 function canReach(pid, i) { return nbrs(i).some(j => owner[j] === pid); }
 function startNavalAttack(pid, target, frac) {
   const p = players[pid], ship = ships.find(s => s.p === pid && !s.busy);
-  if (!ship) { showToast('Build a ship at one of your ports first.'); return false; }
-  if (!land[target] || !isCoast(target)) { showToast('Ships can only land on coastal territory.'); return false; }
+  if (!ship) { if (pid === HUMAN) showToast('Build a ship at one of your ports first.'); return false; }
+  if (!land[target] || !isCoast(target)) { if (pid === HUMAN) showToast('Ships can only land on coastal territory.'); return false; }
   if (owner[target] === pid) return false;
-  if (owner[target] && friendly(pid, owner[target])) { showToast('You have a treaty with that nation.'); return false; }
+  if (owner[target] && friendly(pid, owner[target])) { if (pid === HUMAN) showToast('You have a treaty with that nation.'); return false; }
   const send = Math.floor(p.troops * frac);
-  if (send < 5) { showToast('You need at least 5 troops for an attack.'); return false; }
-  if (owner[target]) setRelation(pid, owner[target], 'war');
+  if (send < 5) { if (pid === HUMAN) showToast('You need at least 5 troops for an attack.'); return false; }
+  if (owner[target]) {
+    const wasWar = relation(pid, owner[target]) === 'war';
+    setRelation(pid, owner[target], 'war');
+    if (!wasWar) {
+      if (owner[target] === HUMAN) {
+        const msg = p.name + ' declared war and launched a naval invasion!';
+        showToast(msg);
+        addDiploEvent('war', msg, p);
+      } else if (pid === HUMAN) {
+        const msg = 'You declared war on ' + players[owner[target]].name + ' with a naval invasion!';
+        showToast(msg);
+        addDiploEvent('war', msg, players[owner[target]]);
+      }
+    }
+  }
   p.troops -= send; ship.busy = true;
   const distance = Math.hypot(ship.dock % W - target % W, ((ship.dock / W) | 0) - ((target / W) | 0));
   navalAttacks.push({ p: pid, target, troops: send, ship, progress: 0, duration: Math.max(12, Math.ceil(distance / 2)) });
-  showToast('Fleet dispatched to the coast.');
+  if (pid === HUMAN) showToast('Fleet dispatched to the coast.');
   return true;
 }
 function stepNavalAttacks() {
@@ -458,16 +759,26 @@ function stepNavalAttacks() {
     }
     if (++a.progress < a.duration) { active.push(a); continue; }
     const def = owner[a.target] ? players[owner[a.target]] : null;
-    const cost = def ? 1 + def.troops / Math.max(1, def.tiles) * .7 : 1;
+    const baseCost = def ? (2 + def.troops / Math.max(1, def.tiles) * .8) : 2;
+    const cost = baseCost * (building[a.target] === 3 ? 3 : 1);
     if (a.troops >= cost) {
+      const prevOwner = owner[a.target];
       if (def) { def.troops = Math.max(0, def.troops - cost * .8); def.tiles--; }
       owner[a.target] = a.p; attacker.tiles++;
       attacker.troops += a.troops - cost; dirty = true;
       a.ship.busy = false;
       if (a.p === HUMAN) showToast('Naval landing secured!');
+      else if (prevOwner === HUMAN) {
+        showToast(attacker.name + ' secured a naval landing on your coast!');
+        addDiploEvent('war', attacker.name + ' landed troops on your coast!', attacker);
+      }
     } else {
+      const prevOwner = owner[a.target];
       a.ship.busy = false; ships = ships.filter(s => s !== a.ship);
       if (a.p === HUMAN) showToast('The landing failed and your ship was lost.');
+      else if (prevOwner === HUMAN) {
+        showToast('Your coastal defenses repelled a naval landing from ' + attacker.name + '!');
+      }
     }
   }
   navalAttacks = active;
@@ -477,6 +788,14 @@ function stepNavalAttacks() {
 function step() {
   if (!started || paused || over) return;
   tick++; stepAttacks(); stepNavalAttacks();
+  for (const s of ships.slice()) {
+    if (!s.busy && (owner[s.dock] !== s.p || building[s.dock] !== 2)) {
+      const altPorts = [];
+      for (let i = 0; i < N; i++) if (owner[i] === s.p && building[i] === 2) altPorts.push(i);
+      if (altPorts.length) s.dock = altPorts[0];
+      else ships = ships.filter(item => item !== s);
+    }
+  }
   for (const b of players) if (b && b.bot && b.alive && ++b.think % DIFFS[difficulty].think === 0) botThink(b);
   economy(); checkEnd(); updateHud();
 }
@@ -588,7 +907,7 @@ function render() {
     const sk = ship.p === HUMAN ? eqItem('ship') : CATALOG.ship.items[0];
     ctx.fillStyle = sk.hull; ctx.strokeStyle = sk.line; ctx.lineWidth = .2;
     ctx.beginPath(); ctx.moveTo(-.9, .1); ctx.lineTo(.9, .1); ctx.lineTo(.55, .55); ctx.lineTo(-.55, .55); ctx.closePath(); ctx.fill(); ctx.stroke();
-    ctx.fillStyle = sk.sail;
+    ctx.fillStyle = ship.p === HUMAN ? sk.sail : (players[ship.p] ? 'rgb(' + players[ship.p].color.join(',') + ')' : sk.sail);
     ctx.beginPath(); ctx.moveTo(-.05, -.9); ctx.lineTo(-.05, .05); ctx.lineTo(.62, .05); ctx.closePath(); ctx.fill(); ctx.stroke();
     ctx.restore();
   }
@@ -613,8 +932,8 @@ function updateHud() {
   if (!me) return;
   const fleet = ships.filter(s => s.p === HUMAN).length, sailing = navalAttacks.filter(a => a.p === HUMAN).length;
   const c = cap(me, me.cities || 0);
-  const goldRate = ((me.tiles * 0.02 + (me.cities || 0) * 1 + (me.ports || 0) * 1.5 + 0.5) * 2).toFixed(1);
-  const troopRate = me.troops < c ? ((1 + Math.min(me.tiles, 600) * 0.05 * (1 - me.troops / c) + 0.2 * (me.cities || 0)) * 10).toFixed(1) : '0.0';
+  const goldRate = ((me.tiles * 0.015 + (me.cities || 0) * 0.7 + (me.ports || 0) * 1.1 + 0.4) * 1.6).toFixed(1);
+  const troopRate = me.troops < c ? ((0.6 + Math.min(me.tiles, 500) * 0.025 * (1 - me.troops / c) + 0.12 * (me.cities || 0)) * 10).toFixed(1) : '0.0';
 
   if ($('stats')) {
     $('stats').innerHTML =
@@ -645,8 +964,11 @@ function updateHud() {
       '</div>';
   }
 
-  $('bCity').disabled = me.gold < COST.city; $('bPort').disabled = me.gold < COST.port;
-  $('bDef').disabled = me.gold < COST.defense; $('bShip').disabled = me.gold < COST.ship || fleet >= 8;
+  const cCity = costOf('city', me), cPort = costOf('port', me), cDef = costOf('defense', me), cShip = costOf('ship', me);
+  $('cCity').textContent = cCity; $('cPort').textContent = cPort;
+  $('cDef').textContent = cDef; $('cShip').textContent = cShip;
+  $('bCity').disabled = me.gold < cCity; $('bPort').disabled = me.gold < cPort;
+  $('bDef').disabled = me.gold < cDef; $('bShip').disabled = me.gold < cShip || fleet >= 8;
   $('board').innerHTML = '<div class="board-header"><b>Leaderboard</b></div>' + players.filter(p => p && p.alive).sort((a, b) => b.tiles - a.tiles).slice(0, 8)
     .map(p => '<div class="board-row"><span class="board-color" style="background:rgb(' + p.color + ')"></span> ' + (p.flag ? '<i class="fl" style="background:' + flagCss(p.flag) + '"></i>' : '') + '<span class="board-name">' + p.name + '</span> <span class="board-tiles">' + p.tiles + '</span></div>').join('');
 }
@@ -658,11 +980,13 @@ function toTile(e) { return { x: Math.floor((e.offsetX - cam.x) / cam.z), y: Mat
 let drag = null, hover = null;
 cv.onmouseleave = () => { hover = null; };
 function buildCheck(type, i) {
-  if (i < 0 || owner[i] !== HUMAN || !land[i]) return false;
-  if (type === 'ship') return building[i] === 2 && players[HUMAN].gold >= COST.ship && ships.filter(s => s.p === HUMAN).length < 8;
+  const me = players[HUMAN];
+  if (!me || i < 0 || owner[i] !== HUMAN || !land[i]) return false;
+  const cost = costOf(type, me);
+  if (type === 'ship') return building[i] === 2 && me.gold >= cost && ships.filter(s => s.p === HUMAN).length < 8;
   if (building[i]) return false;
   if (type === 'port' && !isCoast(i)) return false;
-  return players[HUMAN].gold >= COST[type];
+  return me.gold >= cost;
 }
 const MSGS = { city: 'City built: troop growth increased.', port: 'Port built: gold income increased.', defense: 'Defense post built: attackers pay triple to take it.' };
 const ctxMenu = document.createElement('div'); ctxMenu.id = 'ctxMenu'; ctxMenu.hidden = true; document.body.appendChild(ctxMenu);
@@ -734,7 +1058,7 @@ $('bCancel').onclick = () => {
 $('offerAccept').onclick = () => answerBotOffer(true);
 $('offerReject').onclick = () => answerBotOffer(false);
 $('pct').oninput = () => $('pctv').textContent = $('pct').value + '%';
-$('cCity').textContent = COST.city; $('cPort').textContent = COST.port; $('cShip').textContent = COST.ship; $('cDef').textContent = COST.defense;
+$('cCity').textContent = costOf('city'); $('cPort').textContent = costOf('port'); $('cShip').textContent = costOf('ship'); $('cDef').textContent = costOf('defense');
 $('nameInput').value = playerName = (function () { try { return localStorage.getItem('pdName') || 'You'; } catch (e) { return 'You'; } })();
 $('nameInput').oninput = () => {
   playerName = $('nameInput').value.trim().slice(0, 16) || 'You';
