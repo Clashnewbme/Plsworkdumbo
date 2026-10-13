@@ -217,24 +217,24 @@ function renderDiploFeed() {
   feed.innerHTML = diploEvents.slice(0, 10).map(ev => {
     let icon = '', badgeClass = 'tag-neutral'; // will add later
     if (ev.type === 'alliance-request') { icon = 'Assets/Badges/alliance-request.png'; badgeClass = 'tag-request'; }
-    else if (ev.type === 'alliance-accept') { icon = ''; badgeClass = 'tag-success'; }
-    else if (ev.type === 'alliance-reject') { icon = ''; badgeClass = 'tag-danger'; }
-    else if (ev.type === 'peace-offer') { icon = ''; badgeClass = 'tag-request'; }
-    else if (ev.type === 'peace-accept') { icon = ''; badgeClass = 'tag-success'; }
-    else if (ev.type === 'peace-reject') { icon = ''; badgeClass = 'tag-danger'; }
-    else if (ev.type === 'trade-request') { icon = ''; badgeClass = 'tag-request'; }
-    else if (ev.type === 'trade-accept') { icon = ''; badgeClass = 'tag-success'; }
-    else if (ev.type === 'trade-reject') { icon = ''; badgeClass = 'tag-danger'; }
-    else if (ev.type === 'war') { icon = ''; badgeClass = 'tag-danger'; }
-    else if (ev.type === 'break') { icon = ''; badgeClass = 'tag-warning'; }
-    else if (ev.type === 'reject') { icon = ''; badgeClass = 'tag-danger'; }
+    else if (ev.type === 'alliance-accept') { icon = 'Assets/Badges/alliance-accept.png'; badgeClass = 'tag-success'; }
+    else if (ev.type === 'alliance-reject') { icon = 'Assets/Badges/alliance-reject.png'; badgeClass = 'tag-danger'; }
+    else if (ev.type === 'peace-offer') { icon = 'Assets/Badges/peace-offer.png'; badgeClass = 'tag-request'; }
+    else if (ev.type === 'peace-accept') { icon = 'Assets/Badges/peace-accept.png'; badgeClass = 'tag-success'; }
+    else if (ev.type === 'peace-reject') { icon = 'Assets/Badges/peace-reject.png'; badgeClass = 'tag-danger'; }
+    else if (ev.type === 'trade-request') { icon = 'Assets/Badges/trade-request.png'; badgeClass = 'tag-request'; }
+    else if (ev.type === 'trade-accept') { icon = 'Assets/Badges/trade-accept.png'; badgeClass = 'tag-success'; }
+    else if (ev.type === 'trade-reject') { icon = 'Assets/Badges/trade-reject.png'; badgeClass = 'tag-danger'; }
+    else if (ev.type === 'war') { icon = 'Assets/Badges/war.png'; badgeClass = 'tag-danger'; }
+    else if (ev.type === 'break') { icon = 'Assets/Badges/break.png'; badgeClass = 'tag-warning'; }
+    else if (ev.type === 'reject') { icon = 'Assets/Badges/reject.png'; badgeClass = 'tag-danger'; }
 
     const flagHtml = ev.bot && ev.bot.flag ? '<i class="fl" style="background:' + flagCss(ev.bot.flag) + '"></i>' : '';
     const colorPill = ev.bot ? '<span class="diplo-color" style="background:rgb(' + ev.bot.color + ')"></span>' : '';
 
     return '<div class="diplo-item ' + badgeClass + '">' +
       '<div class="diplo-item-header">' +
-        '<span class="diplo-item-icon">' + icon + '</span>' +
+        '<span class="diplo-item-icon">' + (icon ? '<img src="' + icon + '" alt="' + ev.type + '" width="20" height="20">' : '') + '</span>' +
         '<span class="diplo-item-time">' + ev.time + '</span>' +
       '</div>' +
       '<div class="diplo-item-body">' + colorPill + flagHtml + '<span class="diplo-text">' + ev.message + '</span></div>' +
@@ -1387,19 +1387,20 @@ function drawTerrain() {
     const fx = (px + .5) / SS - .5, fy = (py + .5) / SS - .5, x0 = Math.floor(fx), y0 = Math.floor(fy), tx = fx - x0, ty = fy - y0;
     const h = (hv(x0, y0) * (1 - tx) + hv(x0 + 1, y0) * tx) * (1 - ty) + (hv(x0, y0 + 1) * (1 - tx) + hv(x0 + 1, y0 + 1) * tx) * ty;
     let r, g, b;
-    if (h > sea) { const t = Math.min(1, (h - sea) * 3); r = g = b = 235 - t * 60; if (h < sea + .015) r = g = b = 250; }
-    else {
-      const depth = Math.max(0, Math.min(1, (sea - h) / .3));
-      r = 20 - depth * 12; g = 137 - depth * 70; b = 194 - depth * 70;
-    }
+    const depth = Math.max(0, Math.min(1, (sea - h) / .3));
+    const wr = 20 - depth * 12, wg = 137 - depth * 70, wb = 194 - depth * 70;
+    const t = Math.min(1, Math.max(0, h - sea) * 3), lv = h < sea + .015 ? 250 : 235 - t * 60;
+    // antialiased shoreline: blend land/water across a thin band around the sea level
+    let m = Math.max(0, Math.min(1, (h - sea) / .004 + .5)); m = m * m * (3 - 2 * m);
+    r = wr + (lv - wr) * m; g = wg + (lv - wg) * m; b = wb + (lv - wb) * m;
     const o = (py * W * SS + px) * 4; d[o] = r; d[o + 1] = g; d[o + 2] = b; d[o + 3] = 255;
   }
   tctx.putImageData(img, 0, 0);
 }
 let terrImg, terrData;
 function drawOwners() {
-  terr.width = W; terr.height = H;
-  const img = octx.createImageData(W, H), d = img.data, pat = save.eq.pattern;
+  ter.width = W; ter.height = H;
+  const img = ictx.createImageData(W, H), d = img.data, pat = save.eq.pattern;
   for (let i = 0; i < N; i++) {
     const o = owner[i]; if (!o) continue;
     const c = players[o].color; let edge = false;
@@ -1415,7 +1416,13 @@ function drawOwners() {
     d[i * 4] = Math.min(255, c[0] * k); d[i * 4 + 1] = Math.min(255, c[1] * k); d[i * 4 + 2] = Math.min(255, c[2] * k);
     d[i * 4 + 3] = a;
   }
-  octx.putImageData(img, 0, 0); dirty = false;
+  ictx.putImageData(img, 0, 0);
+  terr.width = W * SS; terr.height = H * SS;
+  octx.imageSmoothingEnabled = true; octx.imageSmoothingQuality = 'high';
+  if ('filter' in octx) octx.filter = 'blur(' + (SS * 0.5) + 'px)';
+  octx.drawImage(ter, 0, 0, W * SS, H * SS);
+  octx.filter = 'none';
+  dirty = false;
 }
 function shapePath(g, kind, x, y) {
   g.beginPath();
@@ -1435,10 +1442,7 @@ function render() {
   ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
   ctx.save(); ctx.translate(cam.x, cam.y); ctx.scale(cam.z, cam.z);
   ctx.drawImage(terrain, 0, 0, W, H);
-  // smooth territory: blur the low-res ownership layer (falls back to bilinear scaling)
-  if ('filter' in ctx) ctx.filter = 'blur(' + (0.6 * 1) + 'px)';
   ctx.drawImage(terr, 0, 0, W, H);
-  ctx.filter = 'none';
   for (let i = 0; i < N; i++) if (building[i]) {
     const x = i % W + .5, y = ((i / W) | 0) + .5;
     const bs = owner[i] === HUMAN ? eqItem('bset') : CATALOG.bset.items[0];

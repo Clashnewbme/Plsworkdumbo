@@ -279,3 +279,4 @@ button:disabled { opacity: .55; cursor: not-allowed; box-shadow: none; }
 }
 
 .stat-icon { width: 18px; height: 18px; object-fit: contain; vertical-align: middle; }
+.diplo-item-icon img{width:20px;height:20px;object-fit:contain;vertical-align:middle;image-rendering:auto}
