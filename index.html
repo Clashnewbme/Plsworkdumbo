@@ -45,7 +45,36 @@
 </div>
 <div id="hud">
   <div class="hud-stats-row">
-    <div id="stats"></div>
+    <div id="stats">
+      <div class="stats-pills">
+        <div class="stat-pill stat-gold" title="Current gold and gold income per second">
+          <img class="stat-icon" src="Assets/Hotbar Assets/Gold.png" alt="">
+          <span class="stat-label">Gold</span>
+          <b id="statGoldValue" class="stat-val"></b>
+          <span id="statGoldRate" class="stat-rate"></span>
+        </div>
+        <div class="stat-pill stat-troops" title="Troop count, troop capacity, and growth per second">
+          <img class="stat-icon" src="Assets/Hotbar Assets/Troops.png" alt="">
+          <span class="stat-label">Troops</span>
+          <b id="statTroopsValue" class="stat-val"></b>
+          <span id="statTroopsRate" class="stat-rate"></span>
+        </div>
+        <div class="stat-pill stat-land" title="Territory tiles">
+          <img class="stat-icon" src="Assets/Hotbar Assets/Land.png" alt="">
+          <span class="stat-label">Land</span>
+          <b id="statLandValue" class="stat-val"></b>
+          <progress id="landProgress" max="100" value="0" aria-label="Progress toward victory"></progress>
+          <span id="landProgressText" class="land-progress-text"></span>
+        </div>
+      </div>
+      <div class="stats-assets">
+        <span class="stat-asset" title="Cities (boosts troops &amp; gold)"><span class="asset-icon">🏛️</span> Cities: <b id="statCities"></b></span>
+        <span class="stat-asset" title="Ports (boosts gold)"><span class="asset-icon">⚓</span> Ports: <b id="statPorts"></b></span>
+        <span class="stat-asset" title="Defense Posts (triples defense)"><span class="asset-icon">🛡️</span> Posts: <b id="statPosts"></b></span>
+        <span class="stat-asset" title="Fleet"><span class="asset-icon">⛵</span> Ships: <b id="statShips"></b><small id="statSailing" class="stat-sailing" hidden></small></span>
+        <span class="stat-asset" title="Active trade agreements"><span class="asset-icon">🤝</span> Trade: <b id="statTrade"></b><small id="statTradeRate" class="stat-trade-rate" hidden></small></span>
+      </div>
+    </div>
   </div>
   <div class="hud-action-row">
     <label id="sliderWrap" class="troop-slider-wrap">
