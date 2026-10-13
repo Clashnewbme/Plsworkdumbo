@@ -12,7 +12,7 @@ Run: open `index.html` in a browser (or `python3 -m http.server`). Start a new c
   - **Maritime Trade Fleets**: If separated by sea and both nations own ports, tiny sailing merchant ships traverse maritime routes between your harbors.
   - **Naval Interception & Sinking**: If enemy warships come near trading vessels, they fire cannons and sink them! Sunk ships tilt and slip underwater with ripple animations before recovering.
 - **Naval Combat & Cannons**: Opposing warships crossing paths at sea exchange cannon fire with tracer arcs, water splashes, and troop damage.
-- **Sound Effects Engine**: Pure Web Audio synthesizer with sound effects for cannon barrages, naval splashes, trade chimes, peace treaties, and war horns. A sound toggle (`🔊 Sound: ON/OFF`) is available in the top bar.
+- **Sound Effects**: Uses the supplied button, click, and trade-success sounds. A sound toggle (`🔊 Sound: ON/OFF`) is available in the top bar.
 - Drag to pan and use the mouse wheel to zoom. The menu includes a quick controls guide.
 - Bots expand, build fleets to sail and invade across oceans, weigh their chances before attacking, place buildings strategically, and make their own peace, alliance, and treaty decisions. They may also send you offers to accept or reject. Right-click a nation to manage diplomacy. Win by owning a set share of land (60% by default) or being last alive.
 - Rendering is smoothed (supersampled terrain, blurred territory) so there are no visible tiles.
