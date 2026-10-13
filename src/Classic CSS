@@ -30,7 +30,6 @@ html, body {
   touch-action: none;
 }
 
-/* Base button styling */
 button {
   background: #454c39;
   color: #e4dfc8;
@@ -68,9 +67,6 @@ button:disabled {
   box-shadow: none;
 }
 
-/* ========================================================
-   TOP RIGHT CORNER: Pause, Unpause, Leave
-   ======================================================== */
 .top-controls {
   position: fixed;
   top: 14px;
@@ -111,9 +107,6 @@ button:disabled {
   box-shadow: none !important;
 }
 
-/* ========================================================
-   TOP LEFT CORNER: Leaderboard
-   ======================================================== */
 #board {
   position: fixed;
   left: 14px;
@@ -165,9 +158,6 @@ button:disabled {
   margin-left: auto;
 }
 
-/* ========================================================
-   BOTTOM MIDDLE: HUD (Build Options, Stats, Troops Slider)
-   ======================================================== */
 #hud {
   position: fixed;
   bottom: 14px;
@@ -185,7 +175,6 @@ button:disabled {
   gap: 10px;
 }
 
-/* Stats section in bottom middle */
 .hud-stats-row {
   display: flex;
   flex-direction: column;
@@ -266,7 +255,6 @@ button:disabled {
   color: #b2c6b0;
 }
 
-/* Action row in bottom middle (slider + build buttons) */
 .hud-action-row {
   display: flex;
   align-items: center;
@@ -347,9 +335,6 @@ button:disabled {
   letter-spacing: .01em;
 }
 
-/* ========================================================
-   BOTTOM RIGHT: Diplomacy Feed & Requests
-   ======================================================== */
 .diplo-panel {
   position: fixed;
   right: 14px;
@@ -396,7 +381,6 @@ button:disabled {
   border: 1px solid #748653;
 }
 
-/* Active offer card inside diplo panel */
 .diplo-offer-box {
   padding: 10px 12px;
   background: #343f39;
@@ -464,7 +448,6 @@ button:disabled {
   color: #fff0dc;
 }
 
-/* Feed list */
 .diplo-feed {
   overflow-y: auto;
   max-height: 220px;
@@ -539,9 +522,6 @@ button:disabled {
   flex: 1;
 }
 
-/* ========================================================
-   TOAST NOTIFICATIONS
-   ======================================================== */
 #toast {
   position: fixed;
   z-index: 100;
@@ -565,7 +545,6 @@ button:disabled {
   transform: translate(-50%, 0);
 }
 
-/* Context menu */
 #ctxMenu {
   position: fixed;
   z-index: 100;
@@ -584,7 +563,6 @@ button:disabled {
 #ctxMenu small { opacity: .85; margin-bottom: 6px; font-size: 11px; color: #b9b397; }
 #ctxMenu button { font-size: 12px; padding: 6px 10px; justify-content: flex-start; }
 
-/* Flag helper */
 .fl {
   display: inline-block;
   width: 14px;
@@ -594,7 +572,6 @@ button:disabled {
   vertical-align: middle;
 }
 
-/* Game over msg modal */
 #msg {
   position: fixed;
   z-index: 120;
@@ -620,9 +597,6 @@ button:disabled {
 }
 #msg small { font-size: 16px; color: #dfc966; font-weight: 500; }
 
-/* ========================================================
-   MAIN MENU & SHOP
-   ======================================================== */
 #menu {
   position: fixed;
   inset: 0;
@@ -755,7 +729,6 @@ button:disabled {
   font-size: 12px;
 }
 
-/* Shop Modal */
 #shop {
   position: fixed;
   inset: 0;
@@ -804,9 +777,6 @@ button:disabled {
   background-color: #1e293b;
 }
 
-/* ========================================================
-   RESPONSIVE DESIGN
-   ======================================================== */
 @media (max-width: 1200px) {
   #hud {
     width: min(680px, calc(100vw - 360px));

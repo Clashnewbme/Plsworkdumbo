@@ -94,8 +94,8 @@ const CATALOG = {
 };
 const itemOf = (cat, id) => CATALOG[cat].items.find(i => i.id === id) || CATALOG[cat].items[0];
 let save = { coins: 100, owned: {}, eq: { flag: 'none', pattern: 'solid', bset: 'classic', ship: 'classic' }, color: '#2a8cff' };
-try { const o = JSON.parse(localStorage.getItem('pdSave') || 'null'); if (o) save = { coins: +o.coins || 0, owned: o.owned || {}, eq: Object.assign(save.eq, o.eq), color: /^#[0-9a-f]{6}$/i.test(o.color) ? o.color : save.color }; } catch (e) { /* ignore */ }
-const persist = () => { try { localStorage.setItem('pdSave', JSON.stringify(save)); } catch (e) { /* ignore */ } };
+try { const o = JSON.parse(localStorage.getItem('pdSave') || 'null'); if (o) save = { coins: +o.coins || 0, owned: o.owned || {}, eq: Object.assign(save.eq, o.eq), color: /^#[0-9a-f]{6}$/i.test(o.color) ? o.color : save.color }; } catch (e) {}
+const persist = () => { try { localStorage.setItem('pdSave', JSON.stringify(save)); } catch (e) {} };
 const owns = (cat, id) => itemOf(cat, id).price === 0 || !!save.owned[cat + ':' + id];
 for (const c in save.eq) if (!owns(c, save.eq[c])) save.eq[c] = CATALOG[c].items[0].id;
 const eqItem = cat => itemOf(cat, save.eq[cat]);
@@ -174,7 +174,7 @@ function playSfx(type) {
     const sound = sfx[type === 'trade' || type === 'treaty' ? 'trade' : type === 'button' ? 'button' : 'click'].cloneNode();
     const playback = sound.play();
     if (playback) playback.catch(() => {});
-  } catch (e) { /* epikk */ }
+  } catch (e) {}
 }
 document.addEventListener('click', e => {
   if (e.target.closest('button')) playSfx('button');
@@ -215,7 +215,7 @@ function renderDiploFeed() {
     return;
   }
   feed.innerHTML = diploEvents.slice(0, 10).map(ev => {
-    let icon = '', badgeClass = 'tag-neutral'; // will add later
+    let icon = '', badgeClass = 'tag-neutral';
     if (ev.type === 'alliance-request') { icon = 'Assets/Badges/alliance-request.png'; badgeClass = 'tag-request'; }
     else if (ev.type === 'alliance-accept') { icon = 'Assets/Badges/alliance-accept.png'; badgeClass = 'tag-success'; }
     else if (ev.type === 'alliance-reject') { icon = 'Assets/Badges/alliance-reject.png'; badgeClass = 'tag-danger'; }
@@ -447,7 +447,6 @@ function setupTradeRoute(pidA, pidB) {
   const pa = players[pidA], pb = players[pidB];
   if (!pa || !pb || !pa.alive || !pb.alive) return { ok: false, reason: 'Nation unavailable.' };
 
-  // 1. Try land connection (railroads)
   const hubA = getTradeHub(pidA), hubB = getTradeHub(pidB);
   let railPath = null;
   if (hubA !== -1 && hubB !== -1) {
@@ -468,7 +467,6 @@ function setupTradeRoute(pidA, pidB) {
     return { ok: true, trade, type: 'rail' };
   }
 
-  // 2. If disconnected by sea, try port-to-port sea trade
   const portA = getTradePort(pidA), portB = getTradePort(pidB);
   if (portA === -1 || portB === -1) {
     return { ok: false, reason: 'Overseas trade requires a coastal port in both nations.' };
@@ -535,7 +533,6 @@ function newGame() {
   diploEvents = []; renderDiploFeed();
   updateCoastTiles();
   const spots = [];
-  // only spawn on solid ground, not on slivers of coast
   for (let i = 0; i < N; i++) if (land[i] && nbrs(i).every(j => land[j])) spots.push(i);
   if (!spots.length) for (let i = 0; i < N; i++) if (land[i]) spots.push(i);
   const gap = Math.max(8, Math.min(18, Math.sqrt(spots.length / (BOTS + 1)) * 1.1));
@@ -556,7 +553,7 @@ function newGame() {
   }
   dirty = true;
 }
-function hsl(h, s, l) { // -> [r,g,b]
+function hsl(h, s, l) {
   s /= 100; l /= 100; const k = n => (n + h / 30) % 12, a = s * Math.min(l, 1 - l);
   const f = n => l - a * Math.max(-1, Math.min(k(n) - 3, 9 - k(n), 1));
   return [f(0) * 255 | 0, f(8) * 255 | 0, f(4) * 255 | 0];
@@ -736,7 +733,6 @@ function answerBotOffer(accept) {
  showNextOffer();
 }
 
-// ---------- combat ----------
 function startAttack(pid, target, frac) {
   const p = players[pid];
   if (!p.alive || target === pid) return false;
@@ -768,7 +764,6 @@ function stepAttacks() {
     while (n-- > 0 && a.troops > 0 && list.length) {
       const k = (rnd() * list.length) | 0, j = list.splice(k, 1)[0];
       if (done.has(j) || owner[j] !== a.t) continue;
-      // big countries pay more per tile, so nobody snowballs forever
       const sprawl = 1 + att.tiles / (count_land() / 6);
       const baseCost = def ? (1.5 + def.troops / Math.max(1, def.tiles) * .75) : 1.6;
       const cost = baseCost * sprawl * (building[j] === 3 ? 3 : 1);
@@ -833,7 +828,6 @@ function botBuildThink(b) {
     if (tile !== -1 && tryBuild(b.id, 3, tile)) return;
   }
 
-  // Check if isolated on island (no land neighbors)
   let hasLandBorders = false;
   for (let i = 0; i < N; i++) {
     if (owner[i] === b.id) {
@@ -844,32 +838,27 @@ function botBuildThink(b) {
     }
   }
 
-  // 3. Ships: If has ports, maintain fleet of 1-3 ships
   const desiredShips = !hasCoast ? 0 : (!hasLandBorders ? Math.min(3, Math.max(1, myPorts)) : (b.tiles < 50 ? 1 : Math.min(3, 1 + Math.floor(myPorts / 2))));
   if (myPorts > 0 && myShips < desiredShips && b.gold >= pShip) {
     const dock = findPortForShip(b);
     if (dock !== -1 && tryBuildShip(b.id, dock)) return;
   }
 
-  // If isolated island nation with no ships, save up for a ship first
   if (!hasLandBorders && hasCoast && myPorts > 0 && myShips === 0 && b.gold < pShip) {
     return;
   }
 
-  // 4. Cities: Economic core development in safe interior
   const maxCities = Math.max(1, Math.floor(b.tiles / 20));
   if (b.tiles >= 12 && myCities < maxCities && b.gold >= pCity) {
     const tile = findBestCityTile(b);
     if (tile !== -1 && tryBuild(b.id, 1, tile)) return;
   }
 
-  // 5. Peacetime border defense
   if (!atWar && myPosts < Math.min(3, Math.floor(b.tiles / 25)) && b.gold >= pDefense + 30) {
     const tile = findBestDefenseTile(b);
     if (tile !== -1 && tryBuild(b.id, 3, tile)) return;
   }
 
-  // 6. Additional ports for large coastal nations
   if (hasCoast && myPorts < Math.min(3, Math.floor(b.tiles / 40)) && b.gold >= pPort + 40) {
     const tile = findBestPortTile(b);
     if (tile !== -1 && tryBuild(b.id, 2, tile)) return;
@@ -1319,7 +1308,6 @@ function stepTrade() {
         ship.x = sx;
         ship.y = sy;
 
-        // Check proximity to enemy warships
         for (const es of enemyShips) {
           const d = Math.hypot(sx - es.x, sy - es.y);
           if (d <= 4.2) {
@@ -1342,7 +1330,6 @@ function stepTrade() {
   }
 }
 
-// ---------- loop ----------
 function step() {
   if (!started || paused || over) return;
   tick++; stepAttacks(); stepNavalAttacks(); stepNavalCombat(); stepTrade();
@@ -1371,16 +1358,14 @@ function end(t) {
   save.coins += earned; persist(); updateCoins(); updateControls();
   t += '<br><small>+' + earned + ' coins</small>'; const m = document.getElementById('msg'); m.hidden = false; m.innerHTML = t + '<br><button onclick="location.reload()">Play again</button>'; }
 
-// ---------- rendering ----------
 let dirty = true, cam = { x: 0, y: 0, z: 1 };
 const cv = document.getElementById('c'), ctx = cv.getContext('2d');
 const terrain = document.createElement('canvas'), tctx = terrain.getContext('2d');
 const terr = document.createElement('canvas'), octx = terr.getContext('2d');
 const ter = document.createElement('canvas'), ictx = ter.getContext('2d');
-const SS = 4; // terrain supersample
+const SS = 4;
 function drawTerrain() {
   terrain.width = W * SS; terrain.height = H * SS;
-  // sample bilinear height for smooth coastlines
   const img = tctx.createImageData(W * SS, H * SS), d = img.data;
   const hv = (x, y) => height[Math.max(0, Math.min(H - 1, y | 0)) * W + Math.max(0, Math.min(W - 1, x | 0))];
   for (let py = 0; py < H * SS; py++) for (let px = 0; px < W * SS; px++) {
@@ -1390,7 +1375,6 @@ function drawTerrain() {
     const depth = Math.max(0, Math.min(1, (sea - h) / .3));
     const wr = 20 - depth * 12, wg = 137 - depth * 70, wb = 194 - depth * 70;
     const t = Math.min(1, Math.max(0, h - sea) * 3), lv = h < sea + .015 ? 250 : 235 - t * 60;
-    // antialiased shoreline: blend land/water across a thin band around the sea level
     let m = Math.max(0, Math.min(1, (h - sea) / .004 + .5)); m = m * m * (3 - 2 * m);
     r = wr + (lv - wr) * m; g = wg + (lv - wg) * m; b = wb + (lv - wb) * m;
     const o = (py * W * SS + px) * 4; d[o] = r; d[o + 1] = g; d[o + 2] = b; d[o + 3] = 255;
@@ -1459,10 +1443,8 @@ function render() {
     ctx.fill(); ctx.stroke(); ctx.globalAlpha = 1;
   }
 
-  // Railroads & Trains
   for (const tr of tradeAgreements) {
     if (tr.type === 'rail' && tr.path.length >= 2) {
-      // Rails
       ctx.save();
       ctx.strokeStyle = '#444';
       ctx.lineWidth = 0.32;
@@ -1473,7 +1455,6 @@ function render() {
       }
       ctx.stroke();
 
-      // Wooden cross-ties
       ctx.strokeStyle = '#6b4f2c';
       ctx.lineWidth = 0.2;
       for (let k = 0; k < tr.path.length - 1; k++) {
@@ -1491,7 +1472,6 @@ function render() {
         }
       }
 
-      // Train engine & cars
       const segs = tr.path.length - 1;
       const pos = (tr.train.progress / tr.train.duration) * segs;
       const idx = Math.min(segs - 1, Math.floor(pos));
@@ -1502,13 +1482,10 @@ function render() {
       const angle = Math.atan2(((p2 / W) | 0) - ((p1 / W) | 0), (p2 % W) - (p1 % W));
       ctx.translate(tx, ty);
       ctx.rotate(angle);
-      // Locomotive body
       ctx.fillStyle = '#222';
       ctx.fillRect(-0.55, -0.22, 1.1, 0.44);
-      // Cab
       ctx.fillStyle = '#8b0000';
       ctx.fillRect(-0.55, -0.24, 0.4, 0.48);
-      // Chimney & Headlight
       ctx.fillStyle = '#111';
       ctx.fillRect(0.2, -0.15, 0.2, 0.3);
       ctx.fillStyle = '#ffec3d';
@@ -1517,10 +1494,8 @@ function render() {
     }
   }
 
-  // Sea Trade Routes & Tiny Trade Ships
   for (const tr of tradeAgreements) {
     if (tr.type === 'sea' && tr.path.length >= 2) {
-      // Dashed trade lane
       ctx.save();
       ctx.setLineDash([0.6, 0.9]);
       ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
@@ -1533,7 +1508,6 @@ function render() {
       ctx.stroke();
       ctx.restore();
 
-      // Tiny sailing trade ships
       for (const ship of tr.tradeShips) {
         if (ship.sinkAnim > 0) {
           const sa = ship.sinkAnim;
@@ -1547,7 +1521,6 @@ function render() {
           ctx.fillStyle = '#d4a373';
           ctx.fillRect(-0.2, -0.5, 0.4, 0.3);
           ctx.restore();
-          // Ripples
           ctx.save();
           ctx.strokeStyle = `rgba(255, 255, 255, ${sa * 0.75})`;
           ctx.lineWidth = 0.15;
@@ -1569,7 +1542,6 @@ function render() {
           ctx.translate(ship.x, ship.y);
           ctx.rotate(angle);
           ctx.scale(0.85, 0.85);
-          // Hull
           ctx.fillStyle = '#8b5a2b';
           ctx.strokeStyle = '#3d2006';
           ctx.lineWidth = 0.15;
@@ -1582,12 +1554,10 @@ function render() {
           ctx.closePath();
           ctx.fill();
           ctx.stroke();
-          // Cargo crates
           ctx.fillStyle = '#d4a373';
           ctx.fillRect(-0.35, -0.16, 0.3, 0.32);
           ctx.fillStyle = '#b7b7a4';
           ctx.fillRect(0.05, -0.16, 0.3, 0.32);
-          // Sail
           const pa = players[tr.a];
           ctx.fillStyle = pa ? 'rgba(' + pa.color.join(',') + ', 0.92)' : '#fff';
           ctx.beginPath();
@@ -1602,7 +1572,6 @@ function render() {
     }
   }
 
-  // Warships
   for (const ship of ships) {
     const attack = navalAttacks.find(a => a.ship === ship);
     let x, y, angle = 0;
@@ -1641,7 +1610,6 @@ function render() {
     ctx.restore();
   }
 
-  // Cannon projectile shots
   for (const c of cannonShots) {
     const t = c.progress / c.duration;
     const cx = c.x1 + (c.x2 - c.x1) * t;
@@ -1656,7 +1624,6 @@ function render() {
     ctx.restore();
   }
 
-  // Explosions / splashes
   for (const e of explosions) {
     ctx.save();
     const alpha = e.life / e.maxLife;
@@ -1671,7 +1638,6 @@ function render() {
     ctx.restore();
   }
 
-  // Smoke particles
   for (const sm of smokeParticles) {
     ctx.save();
     const alpha = sm.life / sm.maxLife;
@@ -1682,7 +1648,7 @@ function render() {
     ctx.fill();
     ctx.restore();
   }
-  for (const p of players) if (p && p.alive && p.tiles > 20) { // labels at centroid
+  for (const p of players) if (p && p.alive && p.tiles > 20) {
     if (p.cx === undefined || tick % 20 === 0) { let sx = 0, sy = 0, c = 0; for (let i = 0; i < N; i++) if (owner[i] === p.id) { sx += i % W; sy += (i / W) | 0; c++; } p.cx = sx / c; p.cy = sy / c; }
     ctx.fillStyle = '#fff'; ctx.strokeStyle = '#000'; ctx.lineWidth = .4; ctx.font = 'bold ' + Math.min(6, 2 + Math.sqrt(p.tiles) / 6) + 'px sans-serif'; ctx.textAlign = 'center';
     const label = p.name + ' ' + Math.floor(p.troops), fs = Math.min(6, 2 + Math.sqrt(p.tiles) / 6);
@@ -1696,7 +1662,6 @@ function render() {
   requestAnimationFrame(render);
 }
 
-// ---------- UI ----------
 const $ = id => document.getElementById(id);
 function updateHud() {
   const me = players[HUMAN];
@@ -1716,36 +1681,25 @@ function updateHud() {
 
   const goldRate = ((me.tiles * 0.015 + (me.cities || 0) * 0.7 + (me.ports || 0) * 1.1 + 0.4 + tradeIncome) * 1.6).toFixed(1);
   const troopRate = me.troops < c ? ((0.6 + Math.min(me.tiles, 500) * 0.025 * (1 - me.troops / c) + 0.12 * (me.cities || 0)) * 10).toFixed(1) : '0.0';
-
-  if ($('stats')) {
-    $('stats').innerHTML =
-      '<div class="stats-pills">' +
-        '<div class="stat-pill stat-gold" title="Current gold and gold income per second">' +
-          '<img class="stat-icon" src="Assets/Hotbar Assets/Gold.png" alt="">' +
-          '<span class="stat-label">Gold</span>' +
-          '<b class="stat-val">' + Math.floor(me.gold) + '</b>' +
-          '<span class="stat-rate">(+' + goldRate + '/s)</span>' +
-        '</div>' +
-        '<div class="stat-pill stat-troops" title="Troop count, troop capacity, and growth per second">' +
-          '<img class="stat-icon" src="Assets/Hotbar Assets/Troops.png" alt="">' +
-          '<span class="stat-label">Troops</span>' +
-          '<b class="stat-val">' + Math.floor(me.troops) + '/' + c + '</b>' +
-          '<span class="stat-rate">(+' + troopRate + '/s)</span>' +
-        '</div>' +
-        '<div class="stat-pill stat-land" title="Territory tiles">' +
-          '<img class="stat-icon" src="Assets/Hotbar Assets/Land.png" alt="">' +
-          '<span class="stat-label">Land</span>' +
-          '<b class="stat-val">' + me.tiles + '</b>' +
-        '</div>' +
-      '</div>' +
-      '<div class="stats-assets">' +
-        '<span class="stat-asset" title="Cities (boosts troops & gold)"><span class="asset-icon">🏛️</span> Cities: <b>' + (me.cities || 0) + '</b></span>' +
-        '<span class="stat-asset" title="Ports (boosts gold)"><span class="asset-icon">⚓</span> Ports: <b>' + (me.ports || 0) + '</b></span>' +
-        '<span class="stat-asset" title="Defense Posts (triples defense)"><span class="asset-icon">🛡️</span> Posts: <b>' + (me.posts || 0) + '</b></span>' +
-        '<span class="stat-asset" title="Fleet"><span class="asset-icon">⛵</span> Ships: <b>' + fleet + '</b>' + (sailing ? ' <small class="stat-sailing">(' + sailing + ' sailing)</small>' : '') + '</span>' +
-        '<span class="stat-asset" title="Active trade agreements"><span class="asset-icon">🤝</span> Trade: <b>' + activeTradeCount + '</b>' + (activeTradeCount > 0 ? ' <small style="color:#2ecc40">(+' + tradeRate + 'g/s)</small>' : '') + '</span>' +
-      '</div>';
-  }
+  const goalTiles = Math.ceil(count_land() * SETTINGS.winPct / 100);
+  const victoryProgress = Math.min(100, me.tiles / goalTiles * 100);
+  $('statGoldValue').textContent = Math.floor(me.gold);
+  $('statGoldRate').textContent = '(+' + goldRate + '/s)';
+  $('statTroopsValue').textContent = Math.floor(me.troops) + '/' + c;
+  $('statTroopsRate').textContent = '(+' + troopRate + '/s)';
+  $('statLandValue').textContent = me.tiles;
+  $('landProgress').value = victoryProgress;
+  $('landProgress').title = 'Victory territory: ' + me.tiles + ' / ' + goalTiles + ' tiles';
+  $('landProgressText').textContent = Math.floor(victoryProgress) + '% to victory';
+  $('statCities').textContent = me.cities || 0;
+  $('statPorts').textContent = me.ports || 0;
+  $('statPosts').textContent = me.posts || 0;
+  $('statShips').textContent = fleet;
+  $('statSailing').hidden = !sailing;
+  $('statSailing').textContent = sailing ? '(' + sailing + ' sailing)' : '';
+  $('statTrade').textContent = activeTradeCount;
+  $('statTradeRate').hidden = !activeTradeCount;
+  $('statTradeRate').textContent = activeTradeCount ? '(+' + tradeRate + 'g/s)' : '';
 
   const cCity = costOf('city', me), cPort = costOf('port', me), cDef = costOf('defense', me), cShip = costOf('ship', me);
   $('cCity').textContent = cCity; $('cPort').textContent = cPort;
@@ -1848,7 +1802,7 @@ $('cCity').textContent = costOf('city'); $('cPort').textContent = costOf('port')
 $('nameInput').value = playerName = (function () { try { return localStorage.getItem('pdName') || 'You'; } catch (e) { return 'You'; } })();
 $('nameInput').oninput = () => {
   playerName = $('nameInput').value.trim().slice(0, 16) || 'You';
-  try { localStorage.setItem('pdName', playerName); } catch (e) { /* ignore */ }
+  try { localStorage.setItem('pdName', playerName); } catch (e) {}
   if (players[HUMAN]) players[HUMAN].name = playerName;
 };
 $('mapSelect').innerHTML = '<option value="random">Random</option>' + Object.keys(MAPS).map(k => '<option value="' + k + '">' + MAPS[k].name + '</option>').join('');
